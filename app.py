@@ -4,8 +4,8 @@ import pandas as pd
 from datetime import datetime
 
 # 페이지 설정
-st.set_page_config(page_title="병의원 실시간 상담일지", layout="wide")
-st.title("📂 365일 실시간 상담 관리 시스템")
+st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
+st.title("📂 상담 관리")
 
 # 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -17,7 +17,7 @@ except:
     df = pd.DataFrame(columns=["날짜", "상담자", "환자성함", "분류", "차트번호", "주요포인트", "상담내용"])
 
 # --- 입력 섹션 ---
-with st.expander("📝 신규 상담 기록하기", expanded=True):
+with st.expander("📝 신규 상담 기록", expanded=True):
     # 상단 2열 배치: 기본 정보
     c1, c2 = st.columns(2)
     with c1:
