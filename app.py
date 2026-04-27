@@ -17,7 +17,7 @@ except:
     df = pd.DataFrame(columns=["날짜", "상담자", "환자성함", "분류", "차트번호", "주요포인트", "상담내용"])
 
 # --- 입력 섹션 ---
-with st.expander("📝 신규 상담 기록", expanded=True):
+with st.expander("📝 기록", expanded=True):
     # 상단 2열 배치: 기본 정보
     c1, c2 = st.columns(2)
     with c1:
