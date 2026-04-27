@@ -55,4 +55,4 @@ with st.expander("📝 기록", expanded=True):
 # --- 조회 섹션 ---
 st.divider()
 st.subheader("📅 전체 상담 내역")
-st.dataframe(df, use_container_width=True)
+st.dataframe(df.style.set_properties(**{'text-align': 'center'}), use_container_width=True)
