@@ -21,18 +21,19 @@ with st.expander("📝 신규 상담 기록하기", expanded=True):
     # 상단 2열 배치: 기본 정보
     c1, c2 = st.columns(2)
     with c1:
-        consultant = st.text_input("상담자 성함")
+        # 상담자 성함을 선택형(selectbox)으로 수정
+        consultant = st.selectbox("상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
         name = st.text_input("환자 성함")
     with c2:
         category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
         chart_no = st.text_input("차트 번호")
     
-    # 하단 전면 배치: 주요 포인트 및 상세 내용 (요청하신 부분)
+    # 하단 전면 배치: 주요 포인트 및 상세 내용
     points = st.text_input("📍 주요 포인트 (한 줄 요약)")
     content = st.text_area("💬 상담 상세 내용", height=150)
 
     if st.button("💾 클라우드에 저장", use_container_width=True):
-        if name and content and consultant:
+        if name and content: # 상담자는 선택형이므로 항상 값이 있음
             new_data = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "상담자": consultant,
@@ -49,11 +50,9 @@ with st.expander("📝 신규 상담 기록하기", expanded=True):
             st.success(f"{name} 환자님 상담 기록이 완료되었습니다!")
             st.rerun()
         else:
-            st.warning("상담자, 환자 성함, 상담 내용은 필수 입력 사항입니다.")
+            st.warning("환자 성함과 상담 내용은 필수 입력 사항입니다.")
 
 # --- 조회 섹션 ---
 st.divider()
 st.subheader("📅 전체 상담 내역")
-# 데이터프레임 표시 (최신순으로 보고 싶다면 아래 주석을 해제하세요)
-# df = df.iloc[::-1] 
 st.dataframe(df, use_container_width=True)
