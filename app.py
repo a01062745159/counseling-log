@@ -35,7 +35,7 @@ with st.expander("📝 기록", expanded=True):
     if st.button("💾 클라우드에 저장", use_container_width=True):
         if name and content: # 상담자는 선택형이므로 항상 값이 있음
             new_data = pd.DataFrame([{
-                "날짜": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "날짜": datetime.now().strftime("%y년 %m월 %d일"),
                 "상담자": consultant,
                 "환자성함": name,
                 "분류": category,
