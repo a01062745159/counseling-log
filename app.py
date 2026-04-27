@@ -5,7 +5,7 @@ from datetime import datetime
 
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
-st.title("📂 수려한치과 상담일")
+st.title("📂 수려한치과 상담일지")
 
 # 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
