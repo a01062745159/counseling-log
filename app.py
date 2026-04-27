@@ -10,7 +10,7 @@ st.title("📂 365일 실시간 상담 관리 시스템")
 # 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 2. 기존 데이터 불러오기 (헤더 순서 유지)
+# 2. 데이터 불러오기
 try:
     df = conn.read(ttl="0s")
 except:
@@ -18,22 +18,21 @@ except:
 
 # --- 입력 섹션 ---
 with st.expander("📝 신규 상담 기록하기", expanded=True):
-    # 입력 칸 배치 조정 (상담자 우선)
-    c1, c2, c3 = st.columns(3)
+    # 상단 2열 배치: 기본 정보
+    c1, c2 = st.columns(2)
     with c1:
         consultant = st.text_input("상담자 성함")
         name = st.text_input("환자 성함")
     with c2:
         category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
         chart_no = st.text_input("차트 번호")
-    with c3:
-        points = st.text_input("주요 포인트")
     
-    content = st.text_area("상담 상세 내용", height=150)
+    # 하단 전면 배치: 주요 포인트 및 상세 내용 (요청하신 부분)
+    points = st.text_input("📍 주요 포인트 (한 줄 요약)")
+    content = st.text_area("💬 상담 상세 내용", height=150)
 
     if st.button("💾 클라우드에 저장", use_container_width=True):
         if name and content and consultant:
-            # 요청하신 순서대로 데이터 구성
             new_data = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "상담자": consultant,
@@ -44,7 +43,6 @@ with st.expander("📝 신규 상담 기록하기", expanded=True):
                 "상담내용": content
             }])
             
-            # 데이터 합치기 및 구글 시트 업데이트
             updated_df = pd.concat([df, new_data], ignore_index=True)
             conn.update(data=updated_df)
             
@@ -55,5 +53,7 @@ with st.expander("📝 신규 상담 기록하기", expanded=True):
 
 # --- 조회 섹션 ---
 st.divider()
-st.subheader("📅 전체 상담 내역 (최근 기록이 아래에 추가됩니다)")
+st.subheader("📅 전체 상담 내역")
+# 데이터프레임 표시 (최신순으로 보고 싶다면 아래 주석을 해제하세요)
+# df = df.iloc[::-1] 
 st.dataframe(df, use_container_width=True)
