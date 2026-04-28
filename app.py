@@ -7,12 +7,14 @@ import re
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
-# --- 🎨 글자 크기 '절대 고정' 스타일 (CSS) ---
+# --- 🎨 글자 크기 '철벽 방어' 스타일 (CSS) ---
 st.markdown("""
     <style>
+    /* 1. 표(st.table) 안의 모든 글자를 14px로 고정 */
     [data-testid="stTable"] {
         font-size: 14px !important;
     }
+    /* 2. 어떤 기호 때문에 제목(h1~h6)이 생겨도 무조건 본문 크기로 강제 축소 */
     [data-testid="stTable"] h1, [data-testid="stTable"] h2, [data-testid="stTable"] h3,
     [data-testid="stTable"] h4, [data-testid="stTable"] h5, [data-testid="stTable"] h6 {
         font-size: 14px !important;
@@ -22,6 +24,7 @@ st.markdown("""
         display: inline !important;
         line-height: 1.5 !important;
     }
+    /* 3. 줄바꿈 및 여백 최적화 */
     [data-testid="stTable"] td {
         white-space: pre-wrap !important;
         vertical-align: top !important;
@@ -36,6 +39,7 @@ st.title("📂 수려한치과 상담일지")
 # 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
 EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용"]
+# 상담자 목록 (여기서 이름을 수정/추가할 수 있습니다)
 COUNSELORS = ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"]
 
 # 2. 데이터 불러오기
@@ -47,11 +51,11 @@ try:
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-# --- 사이드바 조회 설정 ---
+# --- 🔍 사이드바 필터 설정 (상담자별 필터 추가) ---
 with st.sidebar:
     st.header("🔍 데이터 필터")
     
-    # [추가] 상담자별 필터
+    # [추가됨] 상담자 선택 필터
     selected_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS)
     
     # 날짜 범위 선택
@@ -61,13 +65,13 @@ with st.sidebar:
     
     st.divider()
     view_mode = st.radio("👀 보기 모드", ["🔍 정밀 조회 (확대/정렬)", "📄 보고용 (줄바꿈/캡처)"])
-    all_view = st.checkbox("전체 기간 보기")
+    all_view = st.checkbox("전체 기간 보기 (날짜 무시)")
 
-# --- 입력 섹션 ---
+# --- 📝 입력 섹션 ---
 with st.expander("📝 새 상담 기록하기", expanded=False):
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
-        consultant = st.selectbox("👤 상담자", COUNSELORS)
+        consultant = st.selectbox("👤 담당 상담자", COUNSELORS)
     with row1_c2:
         result = st.selectbox("📢 결과", ["미확정", "확정"])
     
@@ -81,7 +85,7 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
 
     amount = st.number_input("💰 금액 (원)", min_value=0, step=10000, format="%d")
     points = st.text_input("📍 주요 포인트")
-    content = st.text_area("💬 상세 내용", height=200)
+    content = st.text_area("💬 상세 상담 내용", height=200)
 
     if st.button("💾 저장하기", use_container_width=True):
         if name and content:
@@ -101,22 +105,23 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             st.success("✅ 저장 완료!")
             st.rerun()
 
-# --- 데이터 필터링 및 출력 ---
+# --- 📅 데이터 필터링 및 출력 ---
 st.divider()
 if not df.empty:
     df_display = df.copy()
     
-    # 날짜 필터링 적용
+    # 1. 날짜 필터링 적용
     df_display['temp_date'] = pd.to_datetime(df_display['날짜'], errors='coerce').dt.date
     if not all_view:
         mask = (df_display['temp_date'] >= start_date) & (df_display['temp_date'] <= end_date)
-        mask = mask | df_display['temp_date'].isna()
+        mask = mask | df_display['temp_date'].isna() # 날짜 형식이 다른 예전 데이터도 일단 포함
         df_display = df_display.loc[mask]
 
-    # [추가] 상담자 필터링 적용
+    # 2. [추가됨] 상담자 필터링 적용
     if selected_counselor != "전체":
         df_display = df_display[df_display['상담자'] == selected_counselor]
 
+    # 임시 날짜 컬럼 제거 및 최신순 정렬
     final_df = df_display.drop(columns=['temp_date']).iloc[::-1]
 
     if view_mode == "🔍 정밀 조회 (확대/정렬)":
@@ -131,7 +136,7 @@ if not df.empty:
             }
         )
     else:
-        # 📄 보고용 모드 가공
+        # 📄 보고용 모드: 기호 오인 자동 방지 가공
         report_df = final_df.copy()
         report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
         
@@ -140,6 +145,7 @@ if not df.empty:
             except: return str(x)
         report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
 
+        # 기호 세니타이징 (글자 크기 방지)
         def sanitize(text):
             if not isinstance(text, str): return text
             text = re.sub(r'(?m)^#', '＃', text)
