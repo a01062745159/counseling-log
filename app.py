@@ -236,15 +236,37 @@ with tab4:
             
             # 상담자별 매출 (전체 선택시만)
             if selected_counselor_tab4 == "전체":
-                st.subheader("👥 상담자별 매출")
-                counselor_sales = df_stats.groupby('상담자')['금액_숫자'].agg(['sum', 'count', 'mean'])
-                counselor_sales.columns = ['총매출', '상담건수', '평균금액']
-                counselor_sales['총매출'] = counselor_sales['총매출'].astype(int)
-                counselor_sales['상담건수'] = counselor_sales['상담건수'].astype(int)
-                counselor_sales['평균금액'] = counselor_sales['평균금액'].astype(int)
-                counselor_sales = counselor_sales.sort_values('총매출', ascending=False)
-                st.dataframe(counselor_sales, use_container_width=True)
-                st.bar_chart(counselor_sales['총매출'])
+                st.subheader("👥 상담자별 매출 및 성과")
+                
+                # 모든 상담자를 포함한 통계 생성
+                counselor_stats_list = []
+                for counselor in COUNSELORS:
+                    counselor_data = df_stats[df_stats['상담자'] == counselor]
+                    
+                    total_sales = int(counselor_data['금액_숫자'].sum())
+                    total_count = len(counselor_data)
+                    avg_amount = int(counselor_data['금액_숫자'].mean()) if total_count > 0 else 0
+                    confirmed = len(counselor_data[counselor_data['상담결과'] == '확정'])
+                    unconfirmed = len(counselor_data[counselor_data['상담결과'] == '미확정'])
+                    agreement_rate = (confirmed / total_count * 100) if total_count > 0 else 0
+                    
+                    counselor_stats_list.append({
+                        '상담자': counselor,
+                        '총매출': f"{total_sales:,}원",
+                        '상담건수': total_count,
+                        '평균금액': f"{avg_amount:,}원",
+                        '확정건수': confirmed,
+                        '미확정건수': unconfirmed,
+                        '동의율': f"{agreement_rate:.1f}%"
+                    })
+                
+                counselor_sales_df = pd.DataFrame(counselor_stats_list)
+                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
+                
+                # 매출액 그래프 (숫자로 변환해서 표시)
+                counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
+                counselor_sales_numeric = counselor_sales_numeric.reindex(COUNSELORS, fill_value=0)
+                st.bar_chart(counselor_sales_numeric)
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
