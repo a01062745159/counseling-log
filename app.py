@@ -111,6 +111,10 @@ with tab2:
         if search_name_tab2:
             df_tab2 = df_tab2[df_tab2['환자성함'].str.contains(search_name_tab2, case=False, na=False)]
         
+        # 금액_숫자 칼럼 제거 (표시용이 아님)
+        if '금액_숫자' in df_tab2.columns:
+            df_tab2 = df_tab2.drop(columns=['금액_숫자'])
+        
         df_tab2 = df_tab2.iloc[::-1]
         
         if not df_tab2.empty:
