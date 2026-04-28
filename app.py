@@ -7,15 +7,14 @@ import re
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
-# --- 🎨 글자 크기 '철벽 방어' 스타일 (CSS) ---
+# --- 🎨 글자 크기 '절대 고정' 스타일 (CSS) ---
 st.markdown("""
     <style>
-    /* 1. 표(st.table) 안의 모든 요소를 14px로 강제 고정 (절대 안 커지게) */
-    [data-testid="stTable"] td, [data-testid="stTable"] th {
+    /* 1. 표(st.table) 안의 모든 글자를 14px로 고정 */
+    [data-testid="stTable"] {
         font-size: 14px !important;
-        font-family: 'Malgun Gothic', sans-serif !important;
     }
-    /* 2. 제목 태그(h1~h6)가 생성되어도 무조건 본문 크기로 출력 */
+    /* 2. 어떤 기호 때문에 제목(h1~h6)이 생겨도 무조건 본문 크기로 강제 축소 */
     [data-testid="stTable"] h1, [data-testid="stTable"] h2, [data-testid="stTable"] h3,
     [data-testid="stTable"] h4, [data-testid="stTable"] h5, [data-testid="stTable"] h6 {
         font-size: 14px !important;
@@ -23,13 +22,14 @@ st.markdown("""
         margin: 0 !important;
         padding: 0 !important;
         display: inline !important;
-        color: #333 !important;
+        line-height: 1.5 !important;
     }
-    /* 3. 줄바꿈 및 간격 최적화 */
+    /* 3. 줄바꿈 및 여백 최적화 */
     [data-testid="stTable"] td {
-        white-space: pre-wrap !important;
+        white-space: pre-wrap !important; /* 엔터 친 대로 줄바꿈 유지 */
         vertical-align: top !important;
         line-height: 1.6 !important;
+        padding: 12px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -43,6 +43,7 @@ EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류"
 # 2. 데이터 불러오기
 try:
     raw_df = conn.read(ttl="0s")
+    # 환자성함이 있는 줄만 진짜 데이터로 인정 (빈 줄 로딩 방지)
     df = raw_df.dropna(subset=["환자성함"]).copy()
     if df.empty:
         df = pd.DataFrame(columns=EXPECTED_COLS)
@@ -57,8 +58,8 @@ with st.sidebar:
     end_date = st.date_input("조회 종료일", today)
     
     st.divider()
-    view_mode = st.radio("👀 보기 모드 선택", ["🔍 정밀 조회 (확대/정렬)", "📄 보고용 (줄바꿈/캡처)"])
-    all_view = st.checkbox("전체 기간 데이터 보기")
+    view_mode = st.radio("👀 보기 모드", ["🔍 정밀 조회 (확대/정렬)", "📄 보고용 (줄바꿈/캡처)"])
+    all_view = st.checkbox("전체 기간 보기")
 
 # --- 입력 섹션 ---
 with st.expander("📝 새 상담 기록하기", expanded=False):
@@ -76,11 +77,11 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
     with row2_c3:
         chart_no = st.text_input("🔢 차트 번호")
 
-    amount = st.number_input("💰 금액 (원 단위)", min_value=0, step=10000, format="%d")
+    amount = st.number_input("💰 금액 (원)", min_value=0, step=10000, format="%d")
     points = st.text_input("📍 주요 포인트")
-    content = st.text_area("💬 상세 상담 내용", height=250)
+    content = st.text_area("💬 상세 내용", height=200)
 
-    if st.button("💾 스프레드시트에 저장", use_container_width=True):
+    if st.button("💾 저장하기", use_container_width=True):
         if name and content:
             new_entry = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%y년 %m월 %d일"),
@@ -95,7 +96,7 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             }])
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
-            st.success(f"✅ 저장 완료!")
+            st.success("✅ 저장 완료!")
             st.rerun()
 
 # --- 데이터 필터링 및 출력 ---
@@ -119,33 +120,32 @@ if not df.empty:
             use_container_width=True,
             hide_index=True,
             column_config={
-                "금액": st.column_config.NumberColumn("금액", format="%,d원", alignment="right"),
-                "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
-                "상담내용": st.column_config.Column("상담 상세 내용", width="large")
+                "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
+                "차트번호": st.column_config.TextColumn(alignment="center"),
+                "상담내용": st.column_config.Column(width="large")
             }
         )
     else:
-        # --- 📄 보고용 모드: 기호 오인 방지 가공 ---
+        # --- 📄 보고용 모드: 기호 오인 자동 방지 가공 ---
         report_df = final_df.copy()
-        
-        # 금액 및 차트번호 가공
         report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
+        
         def clean_chart(x):
             try: return str(int(float(x))) if pd.notnull(x) and str(x).strip() != "" else ""
             except: return str(x)
         report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
 
-        # 💡 [핵심 처방] 컴퓨터가 제목으로 오해하는 기호들을 안전한 기호로 변환
-        def sanitize_for_report(text):
+        # 핵심: 컴퓨터가 제목으로 오해하는 기호들을 "안전한 모양"으로 자동 변환
+        def sanitize(text):
             if not isinstance(text, str): return text
-            # 1. 줄 맨 앞의 # -> '＃'(전각 문자)로 변경 (컴퓨터는 이걸 제목으로 안 봐요!)
+            # 줄 맨 앞의 #을 비슷한 모양의 ＃로 변경 (글자 안 커짐)
             text = re.sub(r'(?m)^#', '＃', text)
-            # 2. 하이픈 연달아 쓰기 -> '──'(도형 선)으로 변경 (윗줄 대제목 방지!)
-            text = text.replace('-', '─') 
+            # 하이픈(-)을 모양이 비슷한 ─로 변경 (윗줄이 제목이 되는 것 방지)
+            text = text.replace('-', '─')
             return text
 
-        report_df['상담내용'] = report_df['상담내용'].apply(sanitize_for_report)
-        report_df['주요포인트'] = report_df['주요포인트'].apply(sanitize_for_report)
+        report_df['상담내용'] = report_df['상담내용'].apply(sanitize)
+        report_df['주요포인트'] = report_df['주요포인트'].apply(sanitize)
         
         st.table(report_df)
 else:
