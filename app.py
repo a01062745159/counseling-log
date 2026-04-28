@@ -36,8 +36,8 @@ try:
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-# ===== 4개 탭 생성 =====
-tab1, tab2, tab3, tab4 = st.tabs(["📝 상담일지 작성", "📋 상담 기록", "📄 상담 보고", "📊 상담 일지 통계"])
+# ===== 5개 탭 생성 =====
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 상담일지 작성", "📋 상담 기록", "📄 상담 보고", "📊 상담 일지 통계", "👤 상담 내용 조회"])
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab1:
@@ -83,7 +83,7 @@ with tab1:
 with tab2:
     st.header("📋 상담 기록")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         selected_counselor_tab2 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab2_counselor")
     with col2:
@@ -91,6 +91,8 @@ with tab2:
         start_date_tab2 = st.date_input("시작일", today, key="tab2_start")
     with col3:
         end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
+    with col4:
+        search_name_tab2 = st.text_input("🔍 환자 이름 검색", placeholder="예: 김지향", key="tab2_search")
     
     if not df.empty:
         df_tab2 = df.copy()
@@ -105,17 +107,25 @@ with tab2:
         if selected_counselor_tab2 != "전체":
             df_tab2 = df_tab2[df_tab2['상담자'] == selected_counselor_tab2]
         
+        # 환자 이름 검색 필터 (부분 검색)
+        if search_name_tab2:
+            df_tab2 = df_tab2[df_tab2['환자성함'].str.contains(search_name_tab2, case=False, na=False)]
+        
         df_tab2 = df_tab2.iloc[::-1]
         
-        st.dataframe(
-            df_tab2, 
-            use_container_width=True, 
-            hide_index=True,
-            column_config={
-                "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
-                "상담내용": st.column_config.Column(width="medium")
-            }
-        )
+        if not df_tab2.empty:
+            st.success(f"✅ {len(df_tab2)}건의 상담 기록")
+            st.dataframe(
+                df_tab2, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
+                    "상담내용": st.column_config.Column(width="medium")
+                }
+            )
+        else:
+            st.warning("❌ 검색 조건에 맞는 상담 기록이 없습니다.")
     else:
         st.info("조회할 데이터가 없습니다")
 
@@ -271,3 +281,45 @@ with tab4:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
         st.info("데이터가 없습니다")
+
+# ===== TAB 5: 상담 내용 조회 (환자 검색) =====
+with tab5:
+    st.header("👤 상담 내용 조회")
+    
+    st.write("환자 이름으로 검색하세요. (부분 검색 가능)")
+    search_patient = st.text_input("🔍 환자 이름 검색", placeholder="예: 김지향, 김지, 이주은 등")
+    
+    if not df.empty:
+        if search_patient:
+            # 부분 검색 (대소문자 구분 없음)
+            df_search = df[df['환자성함'].str.contains(search_patient, case=False, na=False)].copy()
+            
+            if not df_search.empty:
+                # 최신순 정렬
+                df_search = df_search.iloc[::-1]
+                
+                st.success(f"✅ '{search_patient}' 검색 결과: {len(df_search)}건")
+                st.divider()
+                
+                # 환자별로 상담 내용 표시
+                for idx, row in df_search.iterrows():
+                    with st.expander(
+                        f"📌 {row['날짜']} - {row['상담자']} ({row['금액']:,.0f}원) - {row['상담결과']}", 
+                        expanded=False
+                    ):
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("분류", row['분류'])
+                        with col2:
+                            st.metric("차트번호", str(int(float(row['차트번호']))) if pd.notnull(row['차트번호']) and str(row['차트번호']).strip() != '' else "")
+                        with col3:
+                            st.metric("상담자", row['상담자'])
+                        with col4:
+                            st.metric("결과", row['상담결과'])
+                        
+                        st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                        st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+            else:
+                st.warning(f"❌ '{search_patient}'에 해당하는 환자가 없습니다.")
+        else:
+            st.info("환자 이름을 입력해주세요.")
