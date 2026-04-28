@@ -11,10 +11,15 @@ st.markdown("""
     [data-testid="stDataFrame"] {
         font-size: 14px !important;
     }
+    [data-testid="stDataFrame"] tbody tr {
+        height: auto !important;
+    }
     [data-testid="stDataFrame"] td {
-        white-space: pre-wrap !important;
+        white-space: normal !important;
+        word-break: break-word !important;
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
+        max-width: 400px !important;
     }
     </style>
 """, unsafe_allow_html=True)
