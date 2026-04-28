@@ -48,7 +48,7 @@ st.markdown("""
 st.title("📂 수려한치과 상담일지")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
-EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용"]
+EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용", "리콜상태"]
 COUNSELORS = ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"]
 
 try:
@@ -57,8 +57,8 @@ try:
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-# ===== 5개 탭 생성 =====
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 상담일지 작성", "📋 상담 기록", "📄 상담 보고", "📊 상담 일지 통계", "👤 상담 내용 조회"])
+# ===== 6개 탭 생성 =====
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📝 상담일지 작성", "📋 상담 기록", "📄 상담 보고", "📊 상담 일지 통계", "👤 상담 내용 조회", "📞 미확정 리마인더"])
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab1:
@@ -93,7 +93,8 @@ with tab1:
                 "상담결과": result,
                 "금액": amount,
                 "주요포인트": points,
-                "상담내용": content
+                "상담내용": content,
+                "리콜상태": "미리콜"
             }])
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
@@ -349,3 +350,79 @@ with tab5:
                 st.warning(f"❌ '{search_patient}'에 해당하는 환자가 없습니다.")
         else:
             st.info("환자 이름을 입력해주세요.")
+
+# ===== TAB 6: 미확정 상담 리마인더 =====
+with tab6:
+    st.header("📞 미확정 상담 리마인더")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        reminder_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab6_counselor")
+    with col2:
+        st.write("")  # 공간 확보
+    
+    if not df.empty:
+        # 미확정 상담만 필터링
+        df_reminder = df[df['상담결과'] == '미확정'].copy()
+        
+        # 상담자 필터
+        if reminder_counselor != "전체":
+            df_reminder = df_reminder[df_reminder['상담자'] == reminder_counselor]
+        
+        if not df_reminder.empty:
+            # 10일 경과 계산
+            today = datetime.now().date()
+            df_reminder['경과일'] = df_reminder['날짜'].apply(
+                lambda x: (today - datetime.strptime(x, "%Y-%m-%d").date()).days
+            )
+            df_reminder = df_reminder[df_reminder['경과일'] >= 10]  # 10일 이상만 필터
+            
+            if not df_reminder.empty:
+                # 리콜상태 처리 (NaN 값을 "미리콜"로 변환)
+                df_reminder['리콜상태'] = df_reminder['리콜상태'].fillna('미리콜')
+                
+                # 미리콜 / 리콜완료 분리
+                df_need_recall = df_reminder[df_reminder['리콜상태'] == '미리콜'].sort_values('경과일', ascending=False)
+                df_recalled = df_reminder[df_reminder['리콜상태'] == '리콜완료'].sort_values('경과일', ascending=False)
+                
+                # 미리콜 (상단 - 열린상태)
+                if not df_need_recall.empty:
+                    st.subheader(f"🔴 리콜 필요 ({len(df_need_recall)}명)")
+                    for idx, row in df_need_recall.iterrows():
+                        col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                        with col1:
+                            st.write(f"**{row['환자성함']}** ({row['경과일']}일)")
+                        with col2:
+                            st.write(f"{row['상담자']}")
+                        with col3:
+                            st.write(f"{row['날짜']}")
+                        with col4:
+                            st.write(f"{int(float(row['금액'])):,}원")
+                        with col5:
+                            if st.button("✅ 리콜완료", key=f"recall_{idx}"):
+                                # 리콜상태 업데이트
+                                df.loc[df.index == idx, '리콜상태'] = '리콜완료'
+                                conn.update(data=df[EXPECTED_COLS])
+                                st.success("리콜 완료되었습니다!")
+                                st.rerun()
+                
+                # 리콜완료 (하단 - 접힌상태)
+                if not df_recalled.empty:
+                    st.divider()
+                    with st.expander(f"✅ 리콜 완료 ({len(df_recalled)}명)", expanded=False):
+                        for idx, row in df_recalled.iterrows():
+                            col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+                            with col1:
+                                st.write(f"{row['환자성함']} ({row['경과일']}일)")
+                            with col2:
+                                st.write(f"{row['상담자']}")
+                            with col3:
+                                st.write(f"{row['날짜']}")
+                            with col4:
+                                st.write(f"{int(float(row['금액'])):,}원")
+            else:
+                st.info("🎉 리콜 필요한 상담이 없습니다!")
+        else:
+            st.info("미확정 상담이 없습니다.")
+    else:
+        st.info("데이터가 없습니다.")
