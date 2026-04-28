@@ -146,9 +146,9 @@ with tab1:
             st.divider()
             st.subheader("📝 상담내용 상세")
             
-            # 각 행의 상담내용을 마크다운으로 표시
+            # 각 행의 상담내용을 마크다운으로 표시 (기본 오픈)
             for idx, row in df_view.iterrows():
-                with st.expander(f"📌 {row['날짜']} - {row['상담자']} - {row['환자성함']} ({row['금액']:,.0f}원)"):
+                with st.expander(f"📌 {row['날짜']} - {row['상담자']} - {row['환자성함']} ({row['금액']:,.0f}원)", expanded=True):
                     st.markdown(f"**주요포인트:** {row['주요포인트']}")
                     st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
     else:
