@@ -183,16 +183,22 @@ with tab2:
             
             col_a, col_b = st.columns(2)
             with col_a:
-                st.subheader("분류별 건수")
-                category_data = df_stats['분류'].value_counts()
-                if not category_data.empty:
-                    st.bar_chart(category_data)
-            
-            with col_b:
                 st.subheader("결과별 건수")
+                # 결과별: 확정/미확정 순서대로 정렬
                 result_data = df_stats['상담결과'].value_counts()
+                result_order = ['확정', '미확정']
+                result_data = result_data.reindex(result_order, fill_value=0)
                 if not result_data.empty:
                     st.bar_chart(result_data)
+            
+            with col_b:
+                st.subheader("분류별 건수")
+                # 분류별: 모든 항목이 표시되도록 (0건인 것도 포함)
+                category_data = df_stats['분류'].value_counts()
+                category_order = ['예약 신환', '미예약 신환', '예약 구환', '미예약 구환']
+                category_data = category_data.reindex(category_order, fill_value=0)
+                if not category_data.empty:
+                    st.bar_chart(category_data)
             
             st.divider()
             
