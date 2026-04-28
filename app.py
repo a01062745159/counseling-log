@@ -26,15 +26,16 @@ with st.sidebar:
     st.header("🔍 데이터 검색/필터")
     
     # 날짜 필터링 (기본값: 최근 일주일)
-    today = datetime.now().date()
+    today = datetime.now()
     start_date = st.date_input("시작일", today - timedelta(days=7))
     end_date = st.date_input("종료일", today)
     
     st.divider()
+    # 보기 모드 선택 (사이드바로 이동하여 메인 화면을 더 넓게 쓰게 했습니다)
     view_mode = st.radio("👀 보기 모드 선택", ["🔍 정밀 조회", "📄 보고서용"])
 
 # --- 입력 섹션 ---
-with st.expander("📝 기록하기", expanded=False):
+with st.expander("📝 기록하기", expanded=False): # 입력창은 필요할 때만 열도록 기본값을 닫음(False)으로 변경
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
         consultant = st.selectbox("👤 상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
@@ -74,29 +75,25 @@ with st.expander("📝 기록하기", expanded=False):
         else:
             st.warning("⚠️ 필수 항목을 입력해주세요.")
 
-# --- 데이터 필터링 로직 (에러 해결 포인트!) ---
+# --- 데이터 필터링 로직 ---
 if not df.empty:
+    # 1. 날짜 컬럼을 비교 가능한 날짜 형식으로 임시 변환
+    # "26년 04월 28일" -> datetime 객체
     df_temp = df.copy()
+    df_temp['date_obj'] = pd.to_datetime(df_temp['날짜'], format='%y년 %m월 %d일').dt.date
     
-    # 💡 핵심 수정: 여러 날짜 형식이 섞여 있어도 알아서 읽도록 처리 (errors='coerce')
-    # 먼저 '26년 04월 28일' 형식을 시도하고, 안 되면 다른 형식을 자동으로 찾습니다.
-    df_temp['date_obj'] = pd.to_datetime(df_temp['날짜'], errors='coerce').dt.date
-    
-    # 만약 위에서 실패한 것들이 있다면(NaT), 수동으로 다시 시도 (기존 '2026. 4. 28' 대응)
-    mask_fail = df_temp['date_obj'].isna()
-    if mask_fail.any():
-         df_temp.loc[mask_fail, 'date_obj'] = pd.to_datetime(df_temp.loc[mask_fail, '날짜'], format='%Y. %m. %d', errors='coerce').dt.date
-
-    # 선택한 날짜 범위 필터링
+    # 2. 선택한 날짜 범위에 맞는 데이터만 필터링
     mask = (df_temp['date_obj'] >= start_date) & (df_temp['date_obj'] <= end_date)
-    filtered_df = df_temp.loc[mask].drop(columns=['date_obj'])
+    filtered_df = df_temp.loc[mask].drop(columns=['date_obj']) # 임시 컬럼 삭제
     
+    # --- 조회 섹션 ---
     st.divider()
-    st.subheader(f"📅 상담 내역 ({start_date} ~ {end_date})")
+    st.subheader(f"📅 상담 내역 ({start_date.strftime('%y/%m/%d')} ~ {end_date.strftime('%y/%m/%d')})")
     
     if filtered_df.empty:
         st.info("선택하신 기간에는 상담 기록이 없습니다.")
     else:
+        # 최신순 정렬
         display_df = filtered_df.iloc[::-1].copy()
 
         if view_mode == "🔍 정밀 조회":
@@ -117,8 +114,8 @@ if not df.empty:
                 }
             )
         else:
-            # 보고서용 표 가공
-            display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
+            # 보고서용 (st.table) 포맷 가공
+            display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(x):,}원" if pd.notnull(x) else "0원")
             def fix_chart(x):
                 try: return str(int(float(x)))
                 except: return str(x)
