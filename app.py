@@ -81,14 +81,11 @@ with tab1:
         df_view = df.copy()
         df_view['금액_숫자'] = pd.to_numeric(df_view['금액'], errors='coerce').fillna(0)
         
-        # 날짜 필터 적용
-        try:
-            df_view['date_obj'] = pd.to_datetime(df_view['날짜'], errors='coerce').dt.date
-            if not all_view:
-                df_view = df_view[(df_view['date_obj'] >= start_date) & (df_view['date_obj'] <= end_date)]
-            df_view = df_view.drop(columns=['date_obj'])
-        except:
-            pass
+        # 날짜 필터 적용 (문자열로 직접 비교)
+        if not all_view:
+            start_str = start_date.strftime("%Y-%m-%d")
+            end_str = end_date.strftime("%Y-%m-%d")
+            df_view = df_view[(df_view['날짜'] >= start_str) & (df_view['날짜'] <= end_str)]
         
         if selected_counselor != "전체":
             df_view = df_view[df_view['상담자'] == selected_counselor]
@@ -98,7 +95,24 @@ with tab1:
         if view_mode == "🔍 정밀 조회":
             st.dataframe(df_view, use_container_width=True, hide_index=True)
         else:
-            st.table(df_view)
+            # 보고용: 금액_숫자 제거 및 형식 정리
+            report_df = df_view.copy()
+            if '금액_숫자' in report_df.columns:
+                report_df = report_df.drop(columns=['금액_숫자'])
+            
+            # 차트번호를 정수로 표시 (콤마 없음)
+            if '차트번호' in report_df.columns:
+                report_df['차트번호'] = report_df['차트번호'].apply(
+                    lambda x: str(int(float(x))) if pd.notnull(x) and str(x).strip() != '' else ''
+                )
+            
+            # 금액을 정수로 표시 (소수점 없음)
+            if '금액' in report_df.columns:
+                report_df['금액'] = report_df['금액'].apply(
+                    lambda x: f"{int(float(x)):,}원" if pd.notnull(x) else ''
+                )
+            
+            st.table(report_df)
     else:
         st.info("조회할 데이터가 없습니다")
 
@@ -111,14 +125,11 @@ with tab2:
         df_stats = df.copy()
         df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
         
-        # 날짜 필터 적용
-        try:
-            df_stats['date_obj'] = pd.to_datetime(df_stats['날짜'], errors='coerce').dt.date
-            if not all_view:
-                df_stats = df_stats[(df_stats['date_obj'] >= start_date) & (df_stats['date_obj'] <= end_date)]
-            df_stats = df_stats.drop(columns=['date_obj'])
-        except:
-            pass
+        # 날짜 필터 적용 (문자열로 직접 비교)
+        if not all_view:
+            start_str = start_date.strftime("%Y-%m-%d")
+            end_str = end_date.strftime("%Y-%m-%d")
+            df_stats = df_stats[(df_stats['날짜'] >= start_str) & (df_stats['날짜'] <= end_str)]
         
         if stat_counselor != "전체":
             df_stats = df_stats[df_stats['상담자'] == stat_counselor]
