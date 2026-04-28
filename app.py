@@ -434,8 +434,32 @@ with tab6:
                                 f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 | {row['상담자']}", 
                                 expanded=False
                             ):
-                                st.markdown(f"**주요포인트:** {row['주요포인트']}")
-                                st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+                                col1, col2 = st.columns([3, 1])
+                                
+                                with col1:
+                                    st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                                    st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+                                
+                                with col2:
+                                    if st.button("↩️ 리콜 재진행", key=f"undo_recall_{idx}", use_container_width=True):
+                                        st.session_state[f"confirm_undo_{idx}"] = True
+                                
+                                # 확인 단계
+                                if st.session_state.get(f"confirm_undo_{idx}", False):
+                                    st.warning("리콜 완료를 취소하고 미리콜로 변경하시겠습니까?")
+                                    col_yes, col_no = st.columns(2)
+                                    with col_yes:
+                                        if st.button("✔️ 확인", key=f"confirm_undo_yes_{idx}", use_container_width=True):
+                                            # 리콜상태를 다시 미리콜로 변경
+                                            df.loc[df.index == idx, '리콜상태'] = '미리콜'
+                                            conn.update(data=df[EXPECTED_COLS])
+                                            st.session_state[f"confirm_undo_{idx}"] = False
+                                            st.success("미리콜로 변경되었습니다!")
+                                            st.rerun()
+                                    with col_no:
+                                        if st.button("❌ 취소", key=f"confirm_undo_no_{idx}", use_container_width=True):
+                                            st.session_state[f"confirm_undo_{idx}"] = False
+                                            st.rerun()
             else:
                 st.info("🎉 리콜 필요한 상담이 없습니다!")
         else:
