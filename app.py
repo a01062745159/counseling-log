@@ -92,6 +92,10 @@ with tab1:
         
         df_view = df_view.iloc[::-1]
         
+        # 금액_숫자 칼럼 제거
+        if '금액_숫자' in df_view.columns:
+            df_view = df_view.drop(columns=['금액_숫자'])
+        
         if view_mode == "🔍 정밀 조회":
             st.dataframe(
                 df_view, 
@@ -103,10 +107,8 @@ with tab1:
                 }
             )
         else:
-            # 보고용: 금액_숫자 제거 및 형식 정리
+            # 보고용: 금액 형식 정리
             report_df = df_view.copy()
-            if '금액_숫자' in report_df.columns:
-                report_df = report_df.drop(columns=['금액_숫자'])
             
             # 차트번호를 정수로 표시 (콤마 없음)
             if '차트번호' in report_df.columns:
@@ -120,7 +122,14 @@ with tab1:
                     lambda x: f"{int(float(x)):,}원" if pd.notnull(x) else ''
                 )
             
-            st.table(report_df)
+            st.dataframe(
+                report_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "상담내용": st.column_config.Column(width="medium")
+                }
+            )
     else:
         st.info("조회할 데이터가 없습니다")
 
