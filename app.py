@@ -40,7 +40,7 @@ with st.sidebar:
     st.header("🔍 데이터 검색/필터")
     selected_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS)
     today = datetime.now().date()
-    start_date = st.date_input("시작일", today - timedelta(days=7))
+    start_date = st.date_input("시작일", today)
     end_date = st.date_input("종료일", today)
     st.divider()
     view_mode = st.radio("👀 보기 모드", ["🔍 정밀 조회", "📄 보고용"])
