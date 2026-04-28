@@ -83,6 +83,15 @@ with tab1:
         df_stats = df.copy()
         df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
         
+        # 날짜 필터 적용
+        try:
+            df_stats['date_obj'] = pd.to_datetime(df_stats['날짜'], errors='coerce').dt.date
+            if not all_view:
+                df_stats = df_stats[(df_stats['date_obj'] >= start_date) & (df_stats['date_obj'] <= end_date)]
+            df_stats = df_stats.drop(columns=['date_obj'])
+        except:
+            pass
+        
         if stat_counselor != "전체":
             df_stats = df_stats[df_stats['상담자'] == stat_counselor]
         
@@ -126,6 +135,8 @@ with tab1:
                 counselor_sales = counselor_sales.sort_values('총매출', ascending=False)
                 st.dataframe(counselor_sales, use_container_width=True)
                 st.bar_chart(counselor_sales['총매출'])
+        else:
+            st.info("해당 기간에 상담 기록이 없습니다")
     else:
         st.info("데이터가 없습니다")
 
@@ -134,6 +145,16 @@ with tab2:
     
     if not df.empty:
         df_view = df.copy()
+        df_view['금액_숫자'] = pd.to_numeric(df_view['금액'], errors='coerce').fillna(0)
+        
+        # 날짜 필터 적용
+        try:
+            df_view['date_obj'] = pd.to_datetime(df_view['날짜'], errors='coerce').dt.date
+            if not all_view:
+                df_view = df_view[(df_view['date_obj'] >= start_date) & (df_view['date_obj'] <= end_date)]
+            df_view = df_view.drop(columns=['date_obj'])
+        except:
+            pass
         
         if selected_counselor != "전체":
             df_view = df_view[df_view['상담자'] == selected_counselor]
