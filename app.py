@@ -36,34 +36,30 @@ try:
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-with st.sidebar:
-    st.header("🔍 데이터 검색/필터")
-    selected_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS)
-    today = datetime.now().date()
-    start_date = st.date_input("시작일", today)
-    end_date = st.date_input("종료일", today)
-    st.divider()
-    view_mode = st.radio("👀 보기 모드", ["🔍 정밀 조회", "📄 보고용"])
-    all_view = st.checkbox("전체 기간 보기")
+# ===== 4개 탭 생성 =====
+tab1, tab2, tab3, tab4 = st.tabs(["📝 상담일지 작성", "📋 상담 기록", "📄 상담 보고", "📊 실적 현황"])
 
-with st.expander("📝 새 상담 기록하기", expanded=False):
+# ===== TAB 1: 상담일지 작성 =====
+with tab1:
+    st.header("📝 상담일지 작성")
+    
     col1, col2 = st.columns(2)
     with col1:
-        consultant = st.selectbox("상담자", COUNSELORS)
+        consultant = st.selectbox("👤 담당 상담자", COUNSELORS, key="tab1_counselor")
     with col2:
-        result = st.selectbox("결과", ["미확정", "확정"])
+        result = st.selectbox("📢 결과", ["미확정", "확정"], key="tab1_result")
     
     col3, col4, col5 = st.columns(3)
     with col3:
-        category = st.selectbox("분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+        category = st.selectbox("🏥 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"], key="tab1_category")
     with col4:
-        name = st.text_input("환자 성함")
+        name = st.text_input("👤 환자 성함", key="tab1_name")
     with col5:
-        chart_no = st.text_input("차트 번호")
+        chart_no = st.text_input("🔢 차트 번호", key="tab1_chart")
 
-    amount = st.number_input("금액 (원)", min_value=0, step=10000, format="%d")
-    points = st.text_input("주요 포인트")
-    content = st.text_area("상담 내용", height=150)
+    amount = st.number_input("💰 금액 (원)", min_value=0, step=10000, format="%d", key="tab1_amount")
+    points = st.text_input("📍 주요 포인트", key="tab1_points")
+    content = st.text_area("💬 상세 상담 내용", height=150, key="tab1_content")
 
     if st.button("💾 저장하기", use_container_width=True):
         if name and content:
@@ -83,72 +79,109 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             st.success("✅ 저장되었습니다!")
             st.rerun()
 
-tab1, tab2 = st.tabs(["📋 상담 기록", "📊 실적 현황"])
-
-with tab1:
+# ===== TAB 2: 상담 기록 (정밀 조회) =====
+with tab2:
     st.header("📋 상담 기록")
     
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        selected_counselor_tab2 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab2_counselor")
+    with col2:
+        today = datetime.now().date()
+        start_date_tab2 = st.date_input("시작일", today, key="tab2_start")
+    with col3:
+        end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
+    
     if not df.empty:
-        df_view = df.copy()
-        df_view['금액_숫자'] = pd.to_numeric(df_view['금액'], errors='coerce').fillna(0)
+        df_tab2 = df.copy()
+        df_tab2['금액_숫자'] = pd.to_numeric(df_tab2['금액'], errors='coerce').fillna(0)
         
-        # 날짜 필터 적용 (문자열로 직접 비교)
-        if not all_view:
-            start_str = start_date.strftime("%Y-%m-%d")
-            end_str = end_date.strftime("%Y-%m-%d")
-            df_view = df_view[(df_view['날짜'] >= start_str) & (df_view['날짜'] <= end_str)]
+        # 날짜 필터
+        start_str = start_date_tab2.strftime("%Y-%m-%d")
+        end_str = end_date_tab2.strftime("%Y-%m-%d")
+        df_tab2 = df_tab2[(df_tab2['날짜'] >= start_str) & (df_tab2['날짜'] <= end_str)]
         
-        if selected_counselor != "전체":
-            df_view = df_view[df_view['상담자'] == selected_counselor]
+        # 상담자 필터
+        if selected_counselor_tab2 != "전체":
+            df_tab2 = df_tab2[df_tab2['상담자'] == selected_counselor_tab2]
         
-        df_view = df_view.iloc[::-1]
+        df_tab2 = df_tab2.iloc[::-1]
         
-        # 금액_숫자 칼럼 제거
-        if '금액_숫자' in df_view.columns:
-            df_view = df_view.drop(columns=['금액_숫자'])
-        
-        if view_mode == "🔍 정밀 조회":
-            st.dataframe(
-                df_view, 
-                use_container_width=True, 
-                hide_index=True,
-                column_config={
-                    "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
-                    "상담내용": st.column_config.Column(width="medium")
-                }
-            )
-        else:
-            # 보고용: 상담내용 상세만 표시
-            st.subheader("📝 상담내용 상세")
-            
-            # 각 행의 상담내용을 마크다운으로 표시 (기본 오픈)
-            for idx, row in df_view.iterrows():
-                with st.expander(f"📌 {row['날짜']} - {row['상담자']} - {row['환자성함']} ({row['금액']:,.0f}원)", expanded=True):
-                    st.markdown(f"**주요포인트:** {row['주요포인트']}")
-                    st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+        st.dataframe(
+            df_tab2, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
+                "상담내용": st.column_config.Column(width="medium")
+            }
+        )
     else:
         st.info("조회할 데이터가 없습니다")
 
-with tab2:
-    st.header("📊 상담자별 실적")
+# ===== TAB 3: 상담 보고 (보고용) =====
+with tab3:
+    st.header("📄 상담 보고")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        selected_counselor_tab3 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab3_counselor")
+    with col2:
+        today = datetime.now().date()
+        start_date_tab3 = st.date_input("시작일", today, key="tab3_start")
+    with col3:
+        end_date_tab3 = st.date_input("종료일", today, key="tab3_end")
     
     if not df.empty:
-        stat_counselor = st.selectbox("상담자", ["전체"] + COUNSELORS, key="stat")
+        df_tab3 = df.copy()
         
+        # 날짜 필터
+        start_str = start_date_tab3.strftime("%Y-%m-%d")
+        end_str = end_date_tab3.strftime("%Y-%m-%d")
+        df_tab3 = df_tab3[(df_tab3['날짜'] >= start_str) & (df_tab3['날짜'] <= end_str)]
+        
+        # 상담자 필터
+        if selected_counselor_tab3 != "전체":
+            df_tab3 = df_tab3[df_tab3['상담자'] == selected_counselor_tab3]
+        
+        df_tab3 = df_tab3.iloc[::-1]
+        
+        st.subheader("📝 상담내용 상세")
+        for idx, row in df_tab3.iterrows():
+            with st.expander(f"📌 {row['날짜']} - {row['상담자']} - {row['환자성함']} ({row['금액']:,.0f}원)", expanded=True):
+                st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+    else:
+        st.info("조회할 데이터가 없습니다")
+
+# ===== TAB 4: 실적 현황 =====
+with tab4:
+    st.header("📊 실적 현황")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        selected_counselor_tab4 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab4_counselor")
+    with col2:
+        today = datetime.now().date()
+        start_date_tab4 = st.date_input("시작일", today, key="tab4_start")
+    with col3:
+        end_date_tab4 = st.date_input("종료일", today, key="tab4_end")
+    
+    if not df.empty:
         df_stats = df.copy()
         df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
         
-        # 날짜 필터 적용 (문자열로 직접 비교)
-        if not all_view:
-            start_str = start_date.strftime("%Y-%m-%d")
-            end_str = end_date.strftime("%Y-%m-%d")
-            df_stats = df_stats[(df_stats['날짜'] >= start_str) & (df_stats['날짜'] <= end_str)]
+        # 날짜 필터
+        start_str = start_date_tab4.strftime("%Y-%m-%d")
+        end_str = end_date_tab4.strftime("%Y-%m-%d")
+        df_stats = df_stats[(df_stats['날짜'] >= start_str) & (df_stats['날짜'] <= end_str)]
         
-        if stat_counselor != "전체":
-            df_stats = df_stats[df_stats['상담자'] == stat_counselor]
+        # 상담자 필터
+        if selected_counselor_tab4 != "전체":
+            df_stats = df_stats[df_stats['상담자'] == selected_counselor_tab4]
         
         if not df_stats.empty:
-            # 데이터 준비
+            # 데이터 계산
             total_count = len(df_stats)
             total_amount = int(df_stats['금액_숫자'].sum())
             confirmed_count = len(df_stats[df_stats['상담결과'] == '확정'])
@@ -157,7 +190,7 @@ with tab2:
             unconfirmed_amount = int(df_stats[df_stats['상담결과'] == '미확정']['금액_숫자'].sum())
             agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
             
-            # 상단: 주요 지표 (3개 열)
+            # 상단: 주요 지표
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("📌 전체 상담건수", f"{total_count}건")
@@ -168,7 +201,7 @@ with tab2:
             
             st.divider()
             
-            # 중단: 확정/미확정 분석 (2개 열)
+            # 중단: 확정/미확정
             col4, col5 = st.columns(2)
             with col4:
                 st.subheader("✅ 확정")
@@ -181,10 +214,10 @@ with tab2:
             
             st.divider()
             
+            # 그래프
             col_a, col_b = st.columns(2)
             with col_a:
                 st.subheader("결과별 건수")
-                # 결과별: 확정/미확정 순서대로 정렬
                 result_data = df_stats['상담결과'].value_counts()
                 result_order = ['확정', '미확정']
                 result_data = result_data.reindex(result_order, fill_value=0)
@@ -193,7 +226,6 @@ with tab2:
             
             with col_b:
                 st.subheader("분류별 건수")
-                # 분류별: 모든 항목이 표시되도록 (0건인 것도 포함)
                 category_data = df_stats['분류'].value_counts()
                 category_order = ['예약 신환', '미예약 신환', '예약 구환', '미예약 구환']
                 category_data = category_data.reindex(category_order, fill_value=0)
@@ -202,8 +234,9 @@ with tab2:
             
             st.divider()
             
-            if stat_counselor == "전체":
-                st.subheader("상담자별 매출")
+            # 상담자별 매출 (전체 선택시만)
+            if selected_counselor_tab4 == "전체":
+                st.subheader("👥 상담자별 매출")
                 counselor_sales = df_stats.groupby('상담자')['금액_숫자'].agg(['sum', 'count', 'mean'])
                 counselor_sales.columns = ['총매출', '상담건수', '평균금액']
                 counselor_sales['총매출'] = counselor_sales['총매출'].astype(int)
