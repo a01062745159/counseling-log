@@ -395,7 +395,7 @@ with tab6:
                     st.divider()
                     for idx, row in df_need_recall.iterrows():
                         with st.expander(
-                            f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 경과 | {row['상담자']}", 
+                            f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 경과 | {int(float(row['금액'])):,}원 | {row['상담자']}", 
                             expanded=True
                         ):
                             col1, col2 = st.columns([3, 1])
@@ -431,7 +431,7 @@ with tab6:
                     with st.expander(f"✅ 리콜 완료 ({len(df_recalled)}명)", expanded=False):
                         for idx, row in df_recalled.iterrows():
                             with st.expander(
-                                f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 | {row['상담자']}", 
+                                f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 | {int(float(row['금액'])):,}원 | {row['상담자']}", 
                                 expanded=False
                             ):
                                 col1, col2 = st.columns([3, 1])
