@@ -118,32 +118,7 @@ with tab1:
                 }
             )
         else:
-            # 보고용: 기본정보 테이블
-            report_df = df_view.copy()
-            
-            # 차트번호를 정수로 표시
-            if '차트번호' in report_df.columns:
-                report_df['차트번호'] = report_df['차트번호'].apply(
-                    lambda x: str(int(float(x))) if pd.notnull(x) and str(x).strip() != '' else ''
-                )
-            
-            # 금액을 정수로 표시
-            if '금액' in report_df.columns:
-                report_df['금액'] = report_df['금액'].apply(
-                    lambda x: f"{int(float(x)):,}원" if pd.notnull(x) else ''
-                )
-            
-            # 기본정보만 표시 (상담내용, 주요포인트 제외)
-            display_df = report_df.drop(columns=['상담내용', '주요포인트'], errors='ignore')
-            
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                hide_index=True,
-                height=1000
-            )
-            
-            st.divider()
+            # 보고용: 상담내용 상세만 표시
             st.subheader("📝 상담내용 상세")
             
             # 각 행의 상담내용을 마크다운으로 표시 (기본 오픈)
