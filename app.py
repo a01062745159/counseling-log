@@ -92,7 +92,7 @@ with tab2:
     with col3:
         end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
     with col4:
-        search_name_tab2 = st.text_input("🔍 환자 이름 검색", placeholder="예: 김지향", key="tab2_search")
+        search_name_tab2 = st.text_input("🔍 환자 이름 검색", placeholder="예: 송호선", key="tab2_search")
     
     if not df.empty:
         df_tab2 = df.copy()
@@ -287,7 +287,7 @@ with tab5:
     st.header("👤 상담 내용 조회")
     
     st.write("환자 이름으로 검색하세요. (부분 검색 가능)")
-    search_patient = st.text_input("🔍 환자 이름 검색", placeholder="예: 김지향, 김지, 이주은 등")
+    search_patient = st.text_input("🔍 환자 이름 검색", placeholder="예: 송호선, 송, 호선 등")
     
     if not df.empty:
         if search_patient:
@@ -303,8 +303,9 @@ with tab5:
                 
                 # 환자별로 상담 내용 표시
                 for idx, row in df_search.iterrows():
+                    chart_num = str(int(float(row['차트번호']))) if pd.notnull(row['차트번호']) and str(row['차트번호']).strip() != '' else ""
                     with st.expander(
-                        f"📌 {row['날짜']} - {row['상담자']} ({row['금액']:,.0f}원) - {row['상담결과']}", 
+                        f"📌 {row['날짜']} - {row['환자성함']} (차트: {chart_num}) - {row['상담자']}", 
                         expanded=False
                     ):
                         col1, col2, col3, col4 = st.columns(4)
