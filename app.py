@@ -127,7 +127,8 @@ with tab1:
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "상담내용": st.column_config.Column(width="medium")
+                    "주요포인트": st.column_config.Column(width="large"),
+                    "상담내용": st.column_config.Column(width="large")
                 }
             )
     else:
