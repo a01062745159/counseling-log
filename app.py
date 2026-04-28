@@ -14,7 +14,7 @@ st.markdown("""
     [data-testid="stTable"] {
         font-size: 14px !important;
     }
-    /* 2. 어떤 기호 때문에 제목(h1~h6)이 생겨도 무조건 본문 크기로 강제 축소 */
+    /* 2. 기호 때문에 제목(h1~h6)이 생겨도 무조건 본문 크기로 강제 축소 */
     [data-testid="stTable"] h1, [data-testid="stTable"] h2, [data-testid="stTable"] h3,
     [data-testid="stTable"] h4, [data-testid="stTable"] h5, [data-testid="stTable"] h6 {
         font-size: 14px !important;
@@ -39,33 +39,34 @@ st.title("📂 수려한치과 상담일지")
 # 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
 EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용"]
-# 상담자 목록 (여기서 이름을 수정/추가할 수 있습니다)
+# 상담자 목록 (나중에 인원이 바뀌면 여기서 수정하세요)
 COUNSELORS = ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"]
 
 # 2. 데이터 불러오기
 try:
     raw_df = conn.read(ttl="0s")
+    # 환자성함이 비어있는 빈 줄은 무시 (로딩 속도 개선)
     df = raw_df.dropna(subset=["환자성함"]).copy()
     if df.empty:
         df = pd.DataFrame(columns=EXPECTED_COLS)
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-# --- 🔍 사이드바 필터 설정 (상담자별 필터 추가) ---
+# --- 🔍 사이드바 필터 설정 (여기에 상담자 필터가 들어있습니다!) ---
 with st.sidebar:
-    st.header("🔍 데이터 필터")
+    st.header("🔍 데이터 검색/필터")
     
-    # [추가됨] 상담자 선택 필터
+    # ✅ 상담자 선택 필터 (전체 또는 특정 인물)
     selected_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS)
     
     # 날짜 범위 선택
     today = datetime.now().date()
-    start_date = st.date_input("조회 시작일", today - timedelta(days=7))
-    end_date = st.date_input("조회 종료일", today)
+    start_date = st.date_input("시작일", today - timedelta(days=7))
+    end_date = st.date_input("종료일", today)
     
     st.divider()
     view_mode = st.radio("👀 보기 모드", ["🔍 정밀 조회 (확대/정렬)", "📄 보고용 (줄바꿈/캡처)"])
-    all_view = st.checkbox("전체 기간 보기 (날짜 무시)")
+    all_view = st.checkbox("전체 기간 보기 (날짜 필터 해제)")
 
 # --- 📝 입력 섹션 ---
 with st.expander("📝 새 상담 기록하기", expanded=False):
@@ -102,27 +103,27 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             }])
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
-            st.success("✅ 저장 완료!")
+            st.success("✅ 안전하게 저장되었습니다!")
             st.rerun()
 
-# --- 📅 데이터 필터링 및 출력 ---
+# --- 📅 데이터 필터링 로직 ---
 st.divider()
 if not df.empty:
-    df_display = df.copy()
+    df_filtered = df.copy()
     
     # 1. 날짜 필터링 적용
-    df_display['temp_date'] = pd.to_datetime(df_display['날짜'], errors='coerce').dt.date
+    df_filtered['temp_date'] = pd.to_datetime(df_filtered['날짜'], errors='coerce').dt.date
     if not all_view:
-        mask = (df_display['temp_date'] >= start_date) & (df_display['temp_date'] <= end_date)
-        mask = mask | df_display['temp_date'].isna() # 날짜 형식이 다른 예전 데이터도 일단 포함
-        df_display = df_display.loc[mask]
+        mask = (df_filtered['temp_date'] >= start_date) & (df_filtered['temp_date'] <= end_date)
+        mask = mask | df_filtered['temp_date'].isna() # 날짜 형식이 다른 과거 데이터도 포함
+        df_filtered = df_filtered.loc[mask]
 
-    # 2. [추가됨] 상담자 필터링 적용
+    # 2. ✅ 상담자 필터링 적용 (핵심!)
     if selected_counselor != "전체":
-        df_display = df_display[df_display['상담자'] == selected_counselor]
+        df_filtered = df_filtered[df_filtered['상담자'] == selected_counselor]
 
-    # 임시 날짜 컬럼 제거 및 최신순 정렬
-    final_df = df_display.drop(columns=['temp_date']).iloc[::-1]
+    # 최신순 정렬
+    final_df = df_filtered.drop(columns=['temp_date']).iloc[::-1]
 
     if view_mode == "🔍 정밀 조회 (확대/정렬)":
         st.dataframe(
@@ -136,7 +137,7 @@ if not df.empty:
             }
         )
     else:
-        # 📄 보고용 모드: 기호 오인 자동 방지 가공
+        # 📄 보고용 모드 데이터 가공
         report_df = final_df.copy()
         report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
         
@@ -145,11 +146,11 @@ if not df.empty:
             except: return str(x)
         report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
 
-        # 기호 세니타이징 (글자 크기 방지)
+        # 기호 세니타이징 (글자 크기 커지는 현상 완전 방어)
         def sanitize(text):
             if not isinstance(text, str): return text
-            text = re.sub(r'(?m)^#', '＃', text)
-            text = text.replace('-', '─')
+            text = re.sub(r'(?m)^#', '＃', text) # 줄 맨 앞의 # 방어
+            text = text.replace('-', '─')        # 하이픈 연달아 쓰기 방어
             return text
 
         report_df['상담내용'] = report_df['상담내용'].apply(sanitize)
