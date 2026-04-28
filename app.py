@@ -6,33 +6,34 @@ from datetime import datetime, timedelta
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
-# --- 🎨 글자 크기 '철벽 방어' 스타일 (CSS) ---
+# --- 🎨 글자 크기 '절대 고정' 스타일 (CSS) ---
 st.markdown("""
     <style>
-    /* 1. 표(st.table) 안의 모든 요소 글자 크기를 14px로 강제 고정 */
+    /* 1. 표(st.table) 안의 모든 요소 글자 크기 강제 고정 */
     [data-testid="stTable"] {
         font-size: 14px !important;
     }
-    /* 2. 샵(#) 기호로 만들어진 모든 제목 태그(h1~h6)를 일반 텍스트 크기로 압축 */
-    [data-testid="stTable"] td * {
+    /* 2. 제목(#), 구분선(---) 등으로 인해 생성된 모든 헤더 태그 무력화 */
+    [data-testid="stTable"] h1, 
+    [data-testid="stTable"] h2, 
+    [data-testid="stTable"] h3,
+    [data-testid="stTable"] h4,
+    [data-testid="stTable"] h5,
+    [data-testid="stTable"] h6 {
         font-size: 14px !important;
-        font-weight: normal !important;
+        font-weight: bold !important;
+        color: black !important;
+        border: none !important;
         margin: 0 !important;
         padding: 0 !important;
-        display: inline !important; /* 제목 때문에 생기는 줄바꿈 방지 */
-        line-height: 1.6 !important;
+        display: inline !important;
     }
-    /* 3. 굵은 글씨(**)는 두께만 유지하고 크기는 고정 */
-    [data-testid="stTable"] td b, [data-testid="stTable"] td strong {
-        font-weight: bold !important;
-        font-size: 14px !important;
-    }
-    /* 4. 표 칸 안의 줄바꿈 및 여백 최적화 */
+    /* 3. 표 칸 안의 줄바꿈 및 간격 최적화 */
     [data-testid="stTable"] td {
-        white-space: pre-wrap !important; /* 입력한 줄바꿈 그대로 표시 */
-        word-break: break-all !important;
+        white-space: pre-wrap !important; /* 입력한 줄바꿈 그대로 유지 */
         vertical-align: top !important;
-        padding: 10px !important;
+        line-height: 1.6 !important;
+        padding: 12px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -46,7 +47,6 @@ EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류"
 # 2. 데이터 불러오기
 try:
     raw_df = conn.read(ttl="0s")
-    # 환자성함이 비어있는 행 무시
     df = raw_df.dropna(subset=["환자성함"]).copy()
     if df.empty:
         df = pd.DataFrame(columns=EXPECTED_COLS)
@@ -82,7 +82,7 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
 
     amount = st.number_input("💰 금액 (원 단위)", min_value=0, step=10000, format="%d")
     points = st.text_input("📍 주요 포인트")
-    content = st.text_area("💬 상세 상담 내용", height=200, help="줄바꿈을 자유롭게 사용하세요.")
+    content = st.text_area("💬 상세 상담 내용", height=250)
 
     if st.button("💾 스프레드시트에 저장", use_container_width=True):
         if name and content:
@@ -99,7 +99,7 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             }])
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
-            st.success(f"✅ 저장되었습니다!")
+            st.success(f"✅ 저장 완료!")
             st.rerun()
 
 # --- 필터링 및 출력 ---
@@ -133,12 +133,19 @@ if not df.empty:
         report_df = final_df.copy()
         report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
         
+        # 차트번호 소수점 제거
         def clean_chart(x):
             try: return str(int(float(x))) if pd.notnull(x) and str(x).strip() != "" else ""
             except: return str(x)
-        report_df['차트번호'] = report_df['chart_no' if 'chart_no' in report_df else '차트번호'].apply(clean_chart)
+        report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
+
+        # 💡 [핵심 최적화] '#'와 '---'가 사고 치지 못하게 텍스트 가공
+        # # -> No. 로 변경 / --- -> ━━━ 로 변경 (컴퓨터가 제목으로 오해 안 하도록!)
+        report_df['상담내용'] = report_df['상담내용'].astype(str).replace({
+            '#': 'No.', 
+            '---': '━━━━━'
+        }, regex=True)
         
-        # 💡 HTML 렌더링 방지 옵션을 위해 스타일을 더 강력하게 적용한 테이블
         st.table(report_df)
 else:
     st.info("조회할 데이터가 없습니다.")
