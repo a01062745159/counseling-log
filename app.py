@@ -35,13 +35,16 @@ if not st.session_state.logged_in:
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        password = st.text_input("🔑 비밀번호", type="password", placeholder="비밀번호 입력")
-        if st.button("🔓 로그인", use_container_width=True):
-            if password == "2874":
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.error("❌ 비밀번호가 틀렸습니다. 다시 입력해주세요.")
+        with st.form("login_form"):
+            password = st.text_input("🔑 비밀번호", type="password", placeholder="비밀번호 입력")
+            submitted = st.form_submit_button("🔓 로그인", use_container_width=True)
+            
+            if submitted:
+                if password == "2874":
+                    st.session_state.logged_in = True
+                    st.rerun()
+                else:
+                    st.error("❌ 비밀번호가 틀렸습니다. 다시 입력해주세요.")
     st.stop()
 
 # ===== 로그인 성공 후 앱 시작 =====
