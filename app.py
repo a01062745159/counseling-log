@@ -23,18 +23,18 @@ with st.expander("📝 기록", expanded=True):
     # 1행: 상담자 성함 / 상담 결과 (가로 2칸)
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
-        consultant = st.selectbox("👤 상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
+        consultant = st.selectbox("👤상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
     with row1_c2:
-        result = st.selectbox("📢 상담 결과", ["미확정", "확정"])
+        result = st.selectbox("상담 결과", ["미확정", "확정"])
     
     # 2행: 환자 분류 / 환자 성함 / 차트번호 (가로 3칸)
     row2_c1, row2_c2, row2_c3 = st.columns(3)
     with row2_c1:
-        category = st.selectbox("🏥 환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+        category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
     with row2_c2:
-        name = st.text_input("👤 환자 성함")
+        name = st.text_input("환자 성함")
     with row2_c3:
-        chart_no = st.text_input("🔢 차트 번호")
+        chart_no = st.text_input("차트 번호")
         
     # 3행: 주요 포인트 (가로 1칸 전체)
     points = st.text_input("📍 주요 포인트 (한 줄 요약)")
@@ -43,7 +43,7 @@ with st.expander("📝 기록", expanded=True):
     content = st.text_area("💬 상담 상세 내용", height=200)
 
     # 저장 버튼
-    if st.button("💾 클라우드에 저장", use_container_width=True):
+    if st.button("💾 스프레드시트에 저장", use_container_width=True):
         if name and content:
             # 요청하신 새로운 순서로 데이터 구성
             new_data = pd.DataFrame([{
