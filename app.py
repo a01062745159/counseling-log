@@ -202,12 +202,16 @@ with tab3:
 with tab4:
     st.header("👤 상담 내용 조회")
     
-    st.write("환자 이름으로 검색하세요. (부분 검색 가능)")
-    search_patient = st.text_input("🔍 환자 이름 검색", placeholder="예: 송호선, 송, 호선 등")
+    st.write("환자 이름 또는 차트번호로 검색하세요. (부분 검색 가능)")
+    search_patient = st.text_input("🔍 환자 이름 또는 차트번호 검색", placeholder="예: 송호선, 12345 등")
     
     if not df.empty:
         if search_patient:
-            df_search = df[df['환자성함'].str.contains(search_patient, case=False, na=False)].copy()
+            # 환자 이름 또는 차트번호로 검색
+            df_search = df[
+                (df['환자성함'].str.contains(search_patient, case=False, na=False)) | 
+                (df['차트번호'].astype(str).str.contains(search_patient, case=False, na=False))
+            ].copy()
             
             if not df_search.empty:
                 df_search = df_search.iloc[::-1]
@@ -226,7 +230,7 @@ with tab4:
             else:
                 st.warning(f"❌ '{search_patient}'에 해당하는 환자가 없습니다.")
         else:
-            st.info("환자 이름을 입력해주세요.")
+            st.info("환자 이름 또는 차트번호를 입력해주세요.")
     else:
         st.info("데이터가 없습니다")
 
