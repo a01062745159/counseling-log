@@ -93,7 +93,15 @@ with tab1:
         df_view = df_view.iloc[::-1]
         
         if view_mode == "🔍 정밀 조회":
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_view, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
+                    "상담내용": st.column_config.Column(width="medium")
+                }
+            )
         else:
             # 보고용: 금액_숫자 제거 및 형식 정리
             report_df = df_view.copy()
