@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
@@ -15,18 +15,23 @@ EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류"
 
 # 2. 데이터 불러오기 (최대한 가볍게)
 try:
-    # ttl="0s"로 실시간 데이터 확인
     raw_df = conn.read(ttl="0s")
-    
-    # 💡 [핵심] 환자성함이 비어있는 모든 행은 데이터가 없는 것으로 간주하고 삭제합니다.
-    # 이 코드가 있어야 구글 시트의 수천 개 빈 줄을 무시합니다.
+    # 환자성함이 비어있는 행은 무시 (로딩 속도 개선)
     df = raw_df.dropna(subset=["환자성함"]).copy()
-    
-    # 만약 시트 자체가 아예 비어있다면 빈 데이터프레임 생성
     if df.empty:
         df = pd.DataFrame(columns=EXPECTED_COLS)
 except Exception as e:
     df = pd.DataFrame(columns=EXPECTED_COLS)
+
+# --- 사이드바: 날짜 필터 조회 ---
+with st.sidebar:
+    st.header("🔍 기간별 조회")
+    today = datetime.now().date()
+    start_date = st.date_input("시작일", today - timedelta(days=7))
+    end_date = st.date_input("종료일", today)
+    
+    st.divider()
+    st.caption("팁: 차트번호는 콤마 없이 표시되며, 금액에는 자동으로 콤마가 붙습니다.")
 
 # --- 입력 섹션 ---
 with st.expander("📝 새 상담 기록하기", expanded=True):
@@ -62,7 +67,6 @@ with st.expander("📝 새 상담 기록하기", expanded=True):
                 "상담내용": content
             }])
             
-            # 기존 데이터와 합치기
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
             
@@ -71,22 +75,38 @@ with st.expander("📝 새 상담 기록하기", expanded=True):
         else:
             st.warning("⚠️ 환자 성함은 꼭 입력해주세요.")
 
-# --- 조회 섹션 ---
+# --- 조회 및 필터링 섹션 ---
 st.divider()
-st.subheader("📅 전체 상담 내역")
+st.subheader("📅 상담 내역 내역")
 
 if not df.empty:
-    # 정렬 및 콤마 표시가 가능한 정밀 조회 모드로 기본 설정
-    # (에러를 일으킬 수 있는 날짜 필터는 일단 뺐습니다. 잘 되는지 확인부터 해요!)
+    # 날짜 필터링 로직
+    df_display = df.copy()
+    # 날짜 형식이 달라도 읽을 수 있도록 처리
+    df_display['date_obj'] = pd.to_datetime(df_display['날짜'], errors='coerce').dt.date
+    
+    # 선택한 기간의 데이터만 필터링
+    mask = (df_display['date_obj'] >= start_date) & (df_display['date_obj'] <= end_date)
+    # 날짜 형식이 안 맞아서 NaT가 된 데이터도 일단 포함 (데이터 누락 방지)
+    mask = mask | df_display['date_obj'].isna()
+    df_filtered = df_display.loc[mask].drop(columns=['date_obj'])
+
+    # 최신순 정렬 및 데이터프레임 표시
     st.dataframe(
-        df.iloc[::-1], # 최신순
+        df_filtered.iloc[::-1], 
         use_container_width=True,
         hide_index=True,
         column_config={
-            "금액": st.column_config.NumberColumn(format="%,d원"),
-            "차트번호": st.column_config.TextColumn(),
-            "상담내용": st.column_config.Column(width="large")
+            "금액": st.column_config.NumberColumn("상담 금액", format="%,d원", alignment="right"),
+            "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
+            "상담내용": st.column_config.Column("상담 상세 내용", width="large"),
+            "주요포인트": st.column_config.Column("주요 포인트", width="medium"),
+            "날짜": st.column_config.Column(alignment="center"),
+            "상담자": st.column_config.Column(alignment="center"),
+            "환자성함": st.column_config.Column(alignment="center"),
+            "분류": st.column_config.Column(alignment="center"),
+            "상담결과": st.column_config.Column(alignment="center"),
         }
     )
 else:
-    st.info("아직 저장된 상담 내역이 없습니다. 첫 기록을 남겨보세요!")
+    st.info("아직 저장된 상담 내역이 없습니다.")
