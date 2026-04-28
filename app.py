@@ -72,9 +72,37 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             st.success("✅ 저장되었습니다!")
             st.rerun()
 
-tab1, tab2 = st.tabs(["📊 실적 현황", "📋 상담 기록"])
+tab1, tab2 = st.tabs(["📋 상담 기록", "📊 실적 현황"])
 
 with tab1:
+    st.header("📋 상담 기록")
+    
+    if not df.empty:
+        df_view = df.copy()
+        df_view['금액_숫자'] = pd.to_numeric(df_view['금액'], errors='coerce').fillna(0)
+        
+        # 날짜 필터 적용
+        try:
+            df_view['date_obj'] = pd.to_datetime(df_view['날짜'], errors='coerce').dt.date
+            if not all_view:
+                df_view = df_view[(df_view['date_obj'] >= start_date) & (df_view['date_obj'] <= end_date)]
+            df_view = df_view.drop(columns=['date_obj'])
+        except:
+            pass
+        
+        if selected_counselor != "전체":
+            df_view = df_view[df_view['상담자'] == selected_counselor]
+        
+        df_view = df_view.iloc[::-1]
+        
+        if view_mode == "🔍 정밀 조회":
+            st.dataframe(df_view, use_container_width=True, hide_index=True)
+        else:
+            st.table(df_view)
+    else:
+        st.info("조회할 데이터가 없습니다")
+
+with tab2:
     st.header("📊 상담자별 실적")
     
     if not df.empty:
@@ -139,31 +167,3 @@ with tab1:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
         st.info("데이터가 없습니다")
-
-with tab2:
-    st.header("📋 상담 기록")
-    
-    if not df.empty:
-        df_view = df.copy()
-        df_view['금액_숫자'] = pd.to_numeric(df_view['금액'], errors='coerce').fillna(0)
-        
-        # 날짜 필터 적용
-        try:
-            df_view['date_obj'] = pd.to_datetime(df_view['날짜'], errors='coerce').dt.date
-            if not all_view:
-                df_view = df_view[(df_view['date_obj'] >= start_date) & (df_view['date_obj'] <= end_date)]
-            df_view = df_view.drop(columns=['date_obj'])
-        except:
-            pass
-        
-        if selected_counselor != "전체":
-            df_view = df_view[df_view['상담자'] == selected_counselor]
-        
-        df_view = df_view.iloc[::-1]
-        
-        if view_mode == "🔍 정밀 조회":
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
-        else:
-            st.table(df_view)
-    else:
-        st.info("조회할 데이터가 없습니다")
