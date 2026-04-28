@@ -392,38 +392,50 @@ with tab6:
                 # 미리콜 (상단 - 열린상태)
                 if not df_need_recall.empty:
                     st.subheader(f"🔴 리콜 필요 ({len(df_need_recall)}명)")
+                    st.divider()
                     for idx, row in df_need_recall.iterrows():
-                        col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
-                        with col1:
-                            st.write(f"**{row['환자성함']}** ({row['경과일']}일)")
-                        with col2:
-                            st.write(f"{row['상담자']}")
-                        with col3:
-                            st.write(f"{row['날짜']}")
-                        with col4:
-                            st.write(f"{int(float(row['금액'])):,}원")
-                        with col5:
-                            if st.button("✅ 리콜완료", key=f"recall_{idx}"):
-                                # 리콜상태 업데이트
-                                df.loc[df.index == idx, '리콜상태'] = '리콜완료'
-                                conn.update(data=df[EXPECTED_COLS])
-                                st.success("리콜 완료되었습니다!")
-                                st.rerun()
+                        with st.expander(
+                            f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 경과 | {row['상담자']}", 
+                            expanded=True
+                        ):
+                            col1, col2 = st.columns([3, 1])
+                            
+                            with col1:
+                                st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                                st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+                            
+                            with col2:
+                                if st.button("✅ 리콜완료", key=f"recall_{idx}", use_container_width=True):
+                                    st.session_state[f"confirm_{idx}"] = True
+                            
+                            # 확인 단계
+                            if st.session_state.get(f"confirm_{idx}", False):
+                                st.warning("정말 리콜완료 하시겠습니까?")
+                                col_yes, col_no = st.columns(2)
+                                with col_yes:
+                                    if st.button("✔️ 확인", key=f"confirm_yes_{idx}", use_container_width=True):
+                                        # 리콜상태 업데이트
+                                        df.loc[df.index == idx, '리콜상태'] = '리콜완료'
+                                        conn.update(data=df[EXPECTED_COLS])
+                                        st.session_state[f"confirm_{idx}"] = False
+                                        st.success("리콜 완료되었습니다!")
+                                        st.rerun()
+                                with col_no:
+                                    if st.button("❌ 취소", key=f"confirm_no_{idx}", use_container_width=True):
+                                        st.session_state[f"confirm_{idx}"] = False
+                                        st.rerun()
                 
                 # 리콜완료 (하단 - 접힌상태)
                 if not df_recalled.empty:
                     st.divider()
                     with st.expander(f"✅ 리콜 완료 ({len(df_recalled)}명)", expanded=False):
                         for idx, row in df_recalled.iterrows():
-                            col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-                            with col1:
-                                st.write(f"{row['환자성함']} ({row['경과일']}일)")
-                            with col2:
-                                st.write(f"{row['상담자']}")
-                            with col3:
-                                st.write(f"{row['날짜']}")
-                            with col4:
-                                st.write(f"{int(float(row['금액'])):,}원")
+                            with st.expander(
+                                f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 | {row['상담자']}", 
+                                expanded=False
+                            ):
+                                st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                                st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
             else:
                 st.info("🎉 리콜 필요한 상담이 없습니다!")
         else:
