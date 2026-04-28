@@ -24,29 +24,29 @@ except:
 
 # --- 입력 섹션 ---
 with st.expander("📝 기록", expanded=True):
-    # 1행
+    # 1행: 상담자 정보 및 결과
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
-        consultant = st.selectbox("상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
+        consultant = st.selectbox("👤 상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
     with row1_c2:
-        result = st.selectbox("상담 결과", ["미확정", "확정"])
+        result = st.selectbox("📢 상담 결과", ["미확정", "확정"])
     
-    # 2행
+    # 2행: 환자 상세 정보
     row2_c1, row2_c2, row2_c3 = st.columns(3)
     with row2_c1:
-        category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+        category = st.selectbox("🏥 환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
     with row2_c2:
-        name = st.text_input("환자 성함")
+        name = st.text_input("👤 환자 성함")
     with row2_c3:
-        chart_no = st.text_input("차트 번호")
+        chart_no = st.text_input("🔢 차트 번호")
 
-    # 3행
-    amount = st.number_input(" 상담 금액 (원 단위)", min_value=0, step=10000, format="%d")
+    # 3행: 금액 입력
+    amount = st.number_input("💰 상담 금액 (원 단위)", min_value=0, step=10000, format="%d")
         
-    # 4행
+    # 4행: 주요 포인트
     points = st.text_input("📍 주요 포인트 (한 줄 요약)")
     
-    # 5행
+    # 5행: 상세 상담 내용
     content = st.text_area("💬 상담 상세 내용", height=200)
 
     # 저장 버튼
@@ -65,15 +65,15 @@ with st.expander("📝 기록", expanded=True):
                 "상담내용": content
             }])
             
-            # 기존 데이터와 합치기 전, 컬럼 구조를 다시 한번 맞춤
+            # 기존 데이터와 합치기 및 컬럼 순서 고정
             updated_df = pd.concat([df, new_entry], ignore_index=True)
-            updated_df = updated_df[EXPECTED_COLS] # 순서 강제 고정
+            updated_df = updated_df[EXPECTED_COLS]
             
-            # 시트 업데이트
+            # 구글 시트 업데이트
             conn.update(data=updated_df)
             
-            st.success(f"✅ {name} 환자님의 기록이 성공적으로 저장되었습니다!")
-            st.rerun()
+            st.success(f"✅ {name} 환자님의 상담 기록이 저장되었습니다!")
+            st.rerun() # 저장 후 즉시 화면 새로고침
         else:
             st.warning("⚠️ 환자 성함과 상세 상담 내용은 필수 입력 사항입니다.")
 
