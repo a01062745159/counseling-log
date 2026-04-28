@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
@@ -21,8 +21,21 @@ try:
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
+# --- 사이드바 필터링 섹션 ---
+with st.sidebar:
+    st.header("🔍 데이터 검색/필터")
+    
+    # 날짜 필터링 (기본값: 최근 일주일)
+    today = datetime.now()
+    start_date = st.date_input("시작일", today - timedelta(days=7))
+    end_date = st.date_input("종료일", today)
+    
+    st.divider()
+    # 보기 모드 선택 (사이드바로 이동하여 메인 화면을 더 넓게 쓰게 했습니다)
+    view_mode = st.radio("👀 보기 모드 선택", ["🔍 정밀 조회", "📄 보고서용"])
+
 # --- 입력 섹션 ---
-with st.expander("📝 기록하기", expanded=True):
+with st.expander("📝 기록하기", expanded=False): # 입력창은 필요할 때만 열도록 기본값을 닫음(False)으로 변경
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
         consultant = st.selectbox("👤 상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
@@ -62,50 +75,52 @@ with st.expander("📝 기록하기", expanded=True):
         else:
             st.warning("⚠️ 필수 항목을 입력해주세요.")
 
-# --- 조회 섹션 (모드 전환 기능) ---
-st.divider()
-c_title, c_mode = st.columns([2, 1])
-with c_title:
-    st.subheader("📅 상담 내역 조회")
-with c_mode:
-    # 실장님이 원하시는 대로 모드를 선택할 수 있게 만들었습니다.
-    view_mode = st.radio("보기 모드 선택", ["🔍 정밀 조회 (확대/정렬)", "📄 보고서용 (줄바꿈/전체노출)"], horizontal=True)
-
+# --- 데이터 필터링 로직 ---
 if not df.empty:
-    # 공통: 최신순 정렬
-    display_df = df.iloc[::-1].copy()
-
-    if view_mode == "🔍 정밀 조회 (확대/정렬)":
-        # 1. 확대 아이콘이 있는 인터랙티브 표
-        st.dataframe(
-            display_df, 
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
-                "금액": st.column_config.NumberColumn("금액", format="%,d원", alignment="right"),
-                "날짜": st.column_config.Column(alignment="center"),
-                "상담자": st.column_config.Column(alignment="center"),
-                "환자성함": st.column_config.Column(alignment="center"),
-                "분류": st.column_config.Column(alignment="center"),
-                "상담결과": st.column_config.Column(alignment="center"),
-                "주요포인트": st.column_config.Column(width="medium"),
-                "상담내용": st.column_config.Column(width="large"),
-            }
-        )
-        st.caption("💡 표 우측 상단 아이콘을 누르면 확대해서 보실 수 있습니다.")
+    # 1. 날짜 컬럼을 비교 가능한 날짜 형식으로 임시 변환
+    # "26년 04월 28일" -> datetime 객체
+    df_temp = df.copy()
+    df_temp['date_obj'] = pd.to_datetime(df_temp['날짜'], format='%y년 %m월 %d일').dt.date
     
+    # 2. 선택한 날짜 범위에 맞는 데이터만 필터링
+    mask = (df_temp['date_obj'] >= start_date) & (df_temp['date_obj'] <= end_date)
+    filtered_df = df_temp.loc[mask].drop(columns=['date_obj']) # 임시 컬럼 삭제
+    
+    # --- 조회 섹션 ---
+    st.divider()
+    st.subheader(f"📅 상담 내역 ({start_date.strftime('%y/%m/%d')} ~ {end_date.strftime('%y/%m/%d')})")
+    
+    if filtered_df.empty:
+        st.info("선택하신 기간에는 상담 기록이 없습니다.")
     else:
-        # 2. 줄 바꿈이 되는 보고서용 표
-        # 차트번호 소수점 및 금액 콤마 수동 처리 (st.table용)
-        display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(x):,}원" if pd.notnull(x) else "0원")
-        def fix_chart(x):
-            try: return str(int(float(x)))
-            except: return str(x)
-        display_df['차트번호'] = display_df['차트번호'].apply(fix_chart)
-        
-        st.table(display_df)
-        st.caption("💡 이 모드는 글자가 잘리지 않아 캡처해서 보고하기 좋습니다.")
+        # 최신순 정렬
+        display_df = filtered_df.iloc[::-1].copy()
 
+        if view_mode == "🔍 정밀 조회":
+            st.dataframe(
+                display_df, 
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
+                    "금액": st.column_config.NumberColumn("금액", format="%,d원", alignment="right"),
+                    "날짜": st.column_config.Column(alignment="center"),
+                    "상담자": st.column_config.Column(alignment="center"),
+                    "환자성함": st.column_config.Column(alignment="center"),
+                    "분류": st.column_config.Column(alignment="center"),
+                    "상담결과": st.column_config.Column(alignment="center"),
+                    "주요포인트": st.column_config.Column(width="medium"),
+                    "상담내용": st.column_config.Column(width="large"),
+                }
+            )
+        else:
+            # 보고서용 (st.table) 포맷 가공
+            display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(x):,}원" if pd.notnull(x) else "0원")
+            def fix_chart(x):
+                try: return str(int(float(x)))
+                except: return str(x)
+            display_df['차트번호'] = display_df['차트번호'].apply(fix_chart)
+            
+            st.table(display_df)
 else:
     st.info("아직 기록된 상담 내역이 없습니다.")
