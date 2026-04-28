@@ -25,19 +25,19 @@ except:
 with st.expander("📝 기록하기", expanded=True):
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
-        consultant = st.selectbox("상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
+        consultant = st.selectbox("👤 상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
     with row1_c2:
-        result = st.selectbox("상담 결과", ["미확정", "확정"])
+        result = st.selectbox("📢 상담 결과", ["미확정", "확정"])
     
     row2_c1, row2_c2, row2_c3 = st.columns(3)
     with row2_c1:
-        category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+        category = st.selectbox("🏥 환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
     with row2_c2:
-        name = st.text_input("환자 성함")
+        name = st.text_input("👤 환자 성함")
     with row2_c3:
-        chart_no = st.text_input("차트 번호")
+        chart_no = st.text_input("🔢 차트 번호")
 
-    amount = st.number_input("상담 금액 (원)", min_value=0, step=10000, format="%d")
+    amount = st.number_input("💰 상담 금액 (원)", min_value=0, step=10000, format="%d")
     points = st.text_input("📍 주요 포인트 (한 줄 요약)")
     content = st.text_area("💬 상담 상세 내용", height=200)
 
@@ -64,21 +64,33 @@ with st.expander("📝 기록하기", expanded=True):
         else:
             st.warning("⚠️ 필수 항목을 입력해주세요.")
 
-# --- 조회 섹션 (방법 2: 모든 내용이 다 보이는 st.table) ---
+# --- 조회 섹션 (st.table 줄 바꿈 및 포맷 수정) ---
 st.divider()
 st.subheader("📅 전체 상담 내역 (보고용)")
 
 if not df.empty:
-    # 1. 보고용 데이터 복사 (원본 데이터 훼손 방지)
+    # 1. 보고용 데이터 복사
     display_df = df.copy()
 
-    # 2. 금액 컬럼에 천 단위 콤마(,) 추가 (가공된 텍스트로 변경)
-    display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(x):,}원" if pd.notnull(x) else "0원")
+    # 2. 데이터 가공 (금액 콤마 추가)
+    display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(x):,}원" if pd.notnull(x) and str(x) != "" else "0원")
 
-    # 3. 최신 데이터가 가장 위에 오도록 역순 정렬 (선택 사항)
+    # 3. 차트번호 소수점(.0) 및 콤마 제거 (단순 텍스트로 변환)
+    def format_chart_no(x):
+        if pd.isnull(x) or str(x).strip() == "":
+            return ""
+        try:
+            # 숫자로 바꾼 뒤 소수점을 버리고 다시 문자로 변환
+            return str(int(float(x)))
+        except:
+            return str(x)
+            
+    display_df['차트번호'] = display_df['차트번호'].apply(format_chart_no)
+
+    # 4. 최신 데이터가 가장 위에 오도록 역순 정렬
     display_df = display_df.iloc[::-1]
 
-    # 4. 줄 바꿈이 허용되는 st.table 사용
+    # 5. 모든 내용이 보이는 st.table 출력
     st.table(display_df)
 else:
     st.info("아직 기록된 상담 내역이 없습니다.")
