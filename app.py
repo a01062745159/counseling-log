@@ -133,47 +133,12 @@ with tab1:
                     lambda x: f"{int(float(x)):,}원" if pd.notnull(x) else ''
                 )
             
-            # HTML 테이블로 렌더링 (보고용) - 스타일 개선
-            html_table = report_df.to_html(index=False, escape=False)
-            
-            # 스타일 개선: 셀 너비, 패딩, 텍스트 정렬
-            html_styled = """
-            <style>
-                .report-table {
-                    border-collapse: collapse;
-                    width: 100%;
-                    font-size: 13px;
-                    font-family: Arial, sans-serif;
-                }
-                .report-table thead tr {
-                    background-color: #f0f0f0;
-                    border-bottom: 2px solid #333;
-                }
-                .report-table th {
-                    padding: 10px;
-                    text-align: left;
-                    font-weight: bold;
-                    border: 1px solid #ddd;
-                    min-width: 80px;
-                }
-                .report-table td {
-                    padding: 10px;
-                    border: 1px solid #ddd;
-                    vertical-align: top;
-                    white-space: normal;
-                    word-wrap: break-word;
-                    line-height: 1.5;
-                }
-                .report-table tbody tr:nth-child(odd) {
-                    background-color: #f9f9f9;
-                }
-                .report-table tbody tr:hover {
-                    background-color: #f0f0f0;
-                }
-            </style>
-            """ + html_table.replace('<table border="1"', '<table class="report-table"').replace('<tr style="text-align: right;">', '<tr>')
-            
-            st.markdown(html_styled, unsafe_allow_html=True)
+            st.dataframe(
+                report_df,
+                use_container_width=True,
+                hide_index=True,
+                height=600
+            )
     else:
         st.info("조회할 데이터가 없습니다")
 
