@@ -137,7 +137,7 @@ with tab1:
                 report_df,
                 use_container_width=True,
                 hide_index=True,
-                height=600
+                height=2000
             )
     else:
         st.info("조회할 데이터가 없습니다")
