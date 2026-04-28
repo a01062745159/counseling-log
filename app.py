@@ -6,6 +6,27 @@ import re
 
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
+# ===== 🔒 로그인 기능 =====
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.markdown("<h1 style='text-align: center;'>🔐 수려한치과 상담일지</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center;'>비밀번호를 입력하세요</p>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        password = st.text_input("🔑 비밀번호", type="password", placeholder="비밀번호 입력")
+        if st.button("🔓 로그인", use_container_width=True):
+            if password == "2874":
+                st.session_state.logged_in = True
+                st.rerun()
+            else:
+                st.error("❌ 비밀번호가 틀렸습니다. 다시 입력해주세요.")
+    st.stop()
+
+# ===== 로그인 성공 후 앱 시작 =====
+
 st.markdown("""
     <style>
     [data-testid="stDataFrame"] {
