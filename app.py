@@ -118,27 +118,39 @@ with tab1:
                 }
             )
         else:
-            # 보고용: 금액 형식 정리
+            # 보고용: 기본정보 테이블
             report_df = df_view.copy()
             
-            # 차트번호를 정수로 표시 (콤마 없음)
+            # 차트번호를 정수로 표시
             if '차트번호' in report_df.columns:
                 report_df['차트번호'] = report_df['차트번호'].apply(
                     lambda x: str(int(float(x))) if pd.notnull(x) and str(x).strip() != '' else ''
                 )
             
-            # 금액을 정수로 표시 (소수점 없음)
+            # 금액을 정수로 표시
             if '금액' in report_df.columns:
                 report_df['금액'] = report_df['금액'].apply(
                     lambda x: f"{int(float(x)):,}원" if pd.notnull(x) else ''
                 )
             
+            # 기본정보만 표시 (상담내용, 주요포인트 제외)
+            display_df = report_df.drop(columns=['상담내용', '주요포인트'], errors='ignore')
+            
             st.dataframe(
-                report_df,
+                display_df,
                 use_container_width=True,
                 hide_index=True,
-                height=2000
+                height=1000
             )
+            
+            st.divider()
+            st.subheader("📝 상담내용 상세")
+            
+            # 각 행의 상담내용을 마크다운으로 표시
+            for idx, row in df_view.iterrows():
+                with st.expander(f"📌 {row['날짜']} - {row['상담자']} - {row['환자성함']} ({row['금액']:,.0f}원)"):
+                    st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                    st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
     else:
         st.info("조회할 데이터가 없습니다")
 
