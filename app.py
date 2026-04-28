@@ -37,7 +37,7 @@ except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
 # ===== 4개 탭 생성 =====
-tab1, tab2, tab3, tab4 = st.tabs(["📝 상담일지 작성", "📋 상담 기록", "📄 상담 보고", "📊 실적 현황"])
+tab1, tab2, tab3, tab4 = st.tabs(["📝 상담일지 작성", "📋 상담 기록", "📄 상담 보고", "📊 상담 일지 통계"])
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab1:
@@ -156,7 +156,7 @@ with tab3:
 
 # ===== TAB 4: 실적 현황 =====
 with tab4:
-    st.header("📊 실적 현황")
+    st.header("📊 상담 일지 통계")
     
     col1, col2, col3 = st.columns(3)
     with col1:
