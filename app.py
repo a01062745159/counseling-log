@@ -32,19 +32,19 @@ except Exception as e:
 with st.expander("📝 새 상담 기록하기", expanded=True):
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
-        consultant = st.selectbox("👤 상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
+        consultant = st.selectbox("상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
     with row1_c2:
-        result = st.selectbox("📢 상담 결과", ["미확정", "확정"])
+        result = st.selectbox("상담 결과", ["미확정", "확정"])
     
     row2_c1, row2_c2, row2_c3 = st.columns(3)
     with row2_c1:
-        category = st.selectbox("🏥 환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+        category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
     with row2_c2:
-        name = st.text_input("👤 환자 성함")
+        name = st.text_input("환자 성함")
     with row2_c3:
-        chart_no = st.text_input("🔢 차트 번호")
+        chart_no = st.text_input("차트 번호")
 
-    amount = st.number_input("💰 상담 금액 (원)", min_value=0, step=10000, format="%d")
+    amount = st.number_input("상담 금액 (원)", min_value=0, step=10000, format="%d")
     points = st.text_input("📍 주요 포인트")
     content = st.text_area("💬 상담 상세 내용", height=150)
 
