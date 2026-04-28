@@ -133,15 +133,16 @@ with tab1:
                     lambda x: f"{int(float(x)):,}원" if pd.notnull(x) else ''
                 )
             
-            st.dataframe(
-                report_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "주요포인트": st.column_config.Column(width="large"),
-                    "상담내용": st.column_config.Column(width="large")
-                }
-            )
+            # HTML 테이블로 렌더링 (보고용)
+            html_table = report_df.to_html(index=False, escape=False)
+            html_table = f"""
+            <div style="overflow-x: auto;">
+            <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+            {html_table.replace('<table border="1"', '<table style="border-collapse: collapse; width: 100%;"').replace('<tr style="text-align: right;">', '<tr style="text-align: left; border-bottom: 1px solid #ddd;">').replace('<th', '<th style="border-bottom: 2px solid #333; padding: 8px; text-align: left;"').replace('<td', '<td style="padding: 8px; border-bottom: 1px solid #ddd; white-space: normal; word-wrap: break-word;"')}
+            </table>
+            </div>
+            """
+            st.markdown(html_table, unsafe_allow_html=True)
     else:
         st.info("조회할 데이터가 없습니다")
 
