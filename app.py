@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
+import re
 
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
@@ -9,28 +10,27 @@ st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 # --- 🎨 글자 크기 '절대 고정' 스타일 (CSS) ---
 st.markdown("""
     <style>
-    /* 1. 표(st.table) 안의 모든 요소 글자 크기 강제 고정 */
+    /* 1. 표(st.table) 내부의 모든 요소를 14px로 강제 고정 */
     [data-testid="stTable"] {
         font-size: 14px !important;
     }
-    /* 2. 제목(#), 구분선(---) 등으로 인해 생성된 모든 헤더 태그 무력화 */
-    [data-testid="stTable"] h1, 
-    [data-testid="stTable"] h2, 
-    [data-testid="stTable"] h3,
-    [data-testid="stTable"] h4,
-    [data-testid="stTable"] h5,
-    [data-testid="stTable"] h6 {
+    /* 2. 혹시라도 생성된 모든 제목 태그(h1~h6)를 일반 글자 크기로 강제 축소 */
+    [data-testid="stTable"] td h1, 
+    [data-testid="stTable"] td h2, 
+    [data-testid="stTable"] td h3,
+    [data-testid="stTable"] td h4,
+    [data-testid="stTable"] td h5,
+    [data-testid="stTable"] td h6 {
         font-size: 14px !important;
         font-weight: bold !important;
-        color: black !important;
-        border: none !important;
         margin: 0 !important;
         padding: 0 !important;
         display: inline !important;
+        line-height: 1.5 !important;
     }
     /* 3. 표 칸 안의 줄바꿈 및 간격 최적화 */
     [data-testid="stTable"] td {
-        white-space: pre-wrap !important; /* 입력한 줄바꿈 그대로 유지 */
+        white-space: pre-wrap !important;
         vertical-align: top !important;
         line-height: 1.6 !important;
         padding: 12px !important;
@@ -102,7 +102,7 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             st.success(f"✅ 저장 완료!")
             st.rerun()
 
-# --- 필터링 및 출력 ---
+# --- 데이터 필터링 및 출력 ---
 st.divider()
 if not df.empty:
     df_display = df.copy()
@@ -129,7 +129,7 @@ if not df.empty:
             }
         )
     else:
-        # 보고용 가공
+        # --- 📄 보고용 모드 데이터 가공 (여기가 핵심 처방전!) ---
         report_df = final_df.copy()
         report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
         
@@ -139,12 +139,17 @@ if not df.empty:
             except: return str(x)
         report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
 
-        # 💡 [핵심 최적화] '#'와 '---'가 사고 치지 못하게 텍스트 가공
-        # # -> No. 로 변경 / --- -> ━━━ 로 변경 (컴퓨터가 제목으로 오해 안 하도록!)
-        report_df['상담내용'] = report_df['상담내용'].astype(str).replace({
-            '#': 'No.', 
-            '---': '━━━━━'
-        }, regex=True)
+        # 💡 [핵심] 제목 기호(#)와 구분선(---)을 무력화하는 데이터 클리닝
+        def clean_markdown(text):
+            if not isinstance(text, str): return text
+            # 1. 줄 맨 앞의 # 기호를 No. 로 변경
+            text = re.sub(r'(?m)^#', 'No.', text)
+            # 2. 줄 바꿈 후의 구분선(----)을 굵은 선(━━━)으로 변경 (윗줄이 제목이 되는 것 방지)
+            text = re.sub(r'-{3,}', '━━━━━━━━━━━━━━', text)
+            return text
+
+        report_df['상담내용'] = report_df['상담내용'].apply(clean_markdown)
+        report_df['주요포인트'] = report_df['주요포인트'].apply(clean_markdown)
         
         st.table(report_df)
 else:
