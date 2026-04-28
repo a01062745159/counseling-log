@@ -3,17 +3,12 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 st.title("📂 수려한치과 상담일지")
 
-# 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
-
-# 표준 컬럼 순서
 EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용"]
 
-# 2. 데이터 불러오기 및 구조 강제화
 try:
     df = conn.read(ttl="0s")
     if list(df.columns) != EXPECTED_COLS:
@@ -54,43 +49,39 @@ with st.expander("📝 기록하기", expanded=True):
                 "주요포인트": points,
                 "상담내용": content
             }])
-            
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             updated_df = updated_df[EXPECTED_COLS]
             conn.update(data=updated_df)
-            
             st.success(f"✅ {name} 환자님의 기록이 저장되었습니다!")
             st.rerun()
         else:
             st.warning("⚠️ 필수 항목을 입력해주세요.")
 
-# --- 조회 섹션 (st.table 줄 바꿈 및 포맷 수정) ---
+# --- 조회 섹션 (다시 st.dataframe으로 변경하여 확대 기능 살림) ---
 st.divider()
-st.subheader("📅 전체 상담 내역 (보고용)")
+st.subheader("📅 전체 상담 내역 (우측 상단 확대 아이콘 사용 가능)")
 
 if not df.empty:
-    # 1. 보고용 데이터 복사
-    display_df = df.copy()
+    # 최신순 정렬
+    display_df = df.iloc[::-1].copy()
 
-    # 2. 데이터 가공 (금액 콤마 추가)
-    display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(x):,}원" if pd.notnull(x) and str(x) != "" else "0원")
-
-    # 3. 차트번호 소수점(.0) 및 콤마 제거 (단순 텍스트로 변환)
-    def format_chart_no(x):
-        if pd.isnull(x) or str(x).strip() == "":
-            return ""
-        try:
-            # 숫자로 바꾼 뒤 소수점을 버리고 다시 문자로 변환
-            return str(int(float(x)))
-        except:
-            return str(x)
-            
-    display_df['차트번호'] = display_df['차트번호'].apply(format_chart_no)
-
-    # 4. 최신 데이터가 가장 위에 오도록 역순 정렬
-    display_df = display_df.iloc[::-1]
-
-    # 5. 모든 내용이 보이는 st.table 출력
-    st.table(display_df)
+    st.dataframe(
+        display_df, 
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "날짜": st.column_config.Column(alignment="center"),
+            "상담자": st.column_config.Column(alignment="center"),
+            "환자성함": st.column_config.Column(alignment="center"),
+            # 차트번호를 문자열로 취급하여 콤마/소수점 제거
+            "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
+            "분류": st.column_config.Column(alignment="center"),
+            "상담결과": st.column_config.Column(alignment="center"),
+            "금액": st.column_config.NumberColumn("상담 금액", format="%,d원", alignment="right"),
+            # 내용을 아주 넓게 설정
+            "주요포인트": st.column_config.Column("📍 주요 포인트", width="large"),
+            "상담내용": st.column_config.Column("💬 상담 상세 내용", width="large"),
+        }
+    )
 else:
     st.info("아직 기록된 상담 내역이 없습니다.")
