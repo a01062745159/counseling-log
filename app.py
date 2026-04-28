@@ -18,25 +18,27 @@ except:
 
 # --- 입력 섹션 ---
 with st.expander("📝 기록", expanded=True):
-    # 요청하신 3단 레이아웃 구성
-    c1, c2, c3 = st.columns(3)
     
-    with c1:
-        # 1열: 상담자 성함 / 상담 결과
-        consultant = st.selectbox("상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
-        result = st.selectbox("상담 결과", ["미확정", "확정"])
+    # 1행: 상담자 성함 / 상담 결과 (가로 2칸)
+    row1_c1, row1_c2 = st.columns(2)
+    with row1_c1:
+        consultant = st.selectbox("👤 상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
+    with row1_c2:
+        result = st.selectbox("📢 상담 결과", ["미확정", "확정"])
     
-    with c2:
-        # 2열: 환자 분류 / 환자 성함 / 차트번호
-        category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
-        name = st.text_input("환자 성함")
-        chart_no = st.text_input("차트 번호")
+    # 2행: 환자 분류 / 환자 성함 / 차트번호 (가로 3칸)
+    row2_c1, row2_c2, row2_c3 = st.columns(3)
+    with row2_c1:
+        category = st.selectbox("🏥 환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+    with row2_c2:
+        name = st.text_input("👤 환자 성함")
+    with row2_c3:
+        chart_no = st.text_input("🔢 차트 번호")
         
-    with c3:
-        # 3열: 주요 포인트
-        points = st.text_input("📍 주요 포인트 (한 줄 요약)")
+    # 3행: 주요 포인트 (가로 1칸 전체)
+    points = st.text_input("📍 주요 포인트 (한 줄 요약)")
     
-    # 그 아래에 상담 상세내용 (전체 너비 사용)
+    # 4행: 상담 상세내용 (가로 1칸 전체)
     content = st.text_area("💬 상담 상세 내용", height=200)
 
     # 저장 버튼
