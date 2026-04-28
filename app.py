@@ -3,12 +3,17 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
+# 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 st.title("📂 수려한치과 상담일지")
 
+# 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# 표준 컬럼 순서
 EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용"]
 
+# 2. 데이터 불러오기
 try:
     df = conn.read(ttl="0s")
     if list(df.columns) != EXPECTED_COLS:
@@ -57,31 +62,50 @@ with st.expander("📝 기록하기", expanded=True):
         else:
             st.warning("⚠️ 필수 항목을 입력해주세요.")
 
-# --- 조회 섹션 (다시 st.dataframe으로 변경하여 확대 기능 살림) ---
+# --- 조회 섹션 (모드 전환 기능) ---
 st.divider()
-st.subheader("📅 전체 상담 내역 (우측 상단 확대 아이콘 사용 가능)")
+c_title, c_mode = st.columns([2, 1])
+with c_title:
+    st.subheader("📅 상담 내역 조회")
+with c_mode:
+    # 실장님이 원하시는 대로 모드를 선택할 수 있게 만들었습니다.
+    view_mode = st.radio("보기 모드 선택", ["🔍 정밀 조회 (확대/정렬)", "📄 보고서용 (줄바꿈/전체노출)"], horizontal=True)
 
 if not df.empty:
-    # 최신순 정렬
+    # 공통: 최신순 정렬
     display_df = df.iloc[::-1].copy()
 
-    st.dataframe(
-        display_df, 
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "날짜": st.column_config.Column(alignment="center"),
-            "상담자": st.column_config.Column(alignment="center"),
-            "환자성함": st.column_config.Column(alignment="center"),
-            # 차트번호를 문자열로 취급하여 콤마/소수점 제거
-            "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
-            "분류": st.column_config.Column(alignment="center"),
-            "상담결과": st.column_config.Column(alignment="center"),
-            "금액": st.column_config.NumberColumn("상담 금액", format="%,d원", alignment="right"),
-            # 내용을 아주 넓게 설정
-            "주요포인트": st.column_config.Column("📍 주요 포인트", width="large"),
-            "상담내용": st.column_config.Column("💬 상담 상세 내용", width="large"),
-        }
-    )
+    if view_mode == "🔍 정밀 조회 (확대/정렬)":
+        # 1. 확대 아이콘이 있는 인터랙티브 표
+        st.dataframe(
+            display_df, 
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
+                "금액": st.column_config.NumberColumn("금액", format="%,d원", alignment="right"),
+                "날짜": st.column_config.Column(alignment="center"),
+                "상담자": st.column_config.Column(alignment="center"),
+                "환자성함": st.column_config.Column(alignment="center"),
+                "분류": st.column_config.Column(alignment="center"),
+                "상담결과": st.column_config.Column(alignment="center"),
+                "주요포인트": st.column_config.Column(width="medium"),
+                "상담내용": st.column_config.Column(width="large"),
+            }
+        )
+        st.caption("💡 표 우측 상단 아이콘을 누르면 확대해서 보실 수 있습니다.")
+    
+    else:
+        # 2. 줄 바꿈이 되는 보고서용 표
+        # 차트번호 소수점 및 금액 콤마 수동 처리 (st.table용)
+        display_df['금액'] = display_df['금액'].apply(lambda x: f"{int(x):,}원" if pd.notnull(x) else "0원")
+        def fix_chart(x):
+            try: return str(int(float(x)))
+            except: return str(x)
+        display_df['차트번호'] = display_df['차트번호'].apply(fix_chart)
+        
+        st.table(display_df)
+        st.caption("💡 이 모드는 글자가 잘리지 않아 캡처해서 보고하기 좋습니다.")
+
 else:
     st.info("아직 기록된 상담 내역이 없습니다.")
