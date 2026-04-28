@@ -148,17 +148,36 @@ with tab2:
             df_stats = df_stats[df_stats['상담자'] == stat_counselor]
         
         if not df_stats.empty:
-            col1, col2, col3, col4 = st.columns(4)
+            # 데이터 준비
+            total_count = len(df_stats)
+            total_amount = int(df_stats['금액_숫자'].sum())
+            confirmed_count = len(df_stats[df_stats['상담결과'] == '확정'])
+            unconfirmed_count = len(df_stats[df_stats['상담결과'] == '미확정'])
+            confirmed_amount = int(df_stats[df_stats['상담결과'] == '확정']['금액_숫자'].sum())
+            unconfirmed_amount = int(df_stats[df_stats['상담결과'] == '미확정']['금액_숫자'].sum())
+            agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+            
+            # 상단: 주요 지표 (3개 열)
+            col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("상담 건수", f"{len(df_stats)}건")
+                st.metric("📌 전체 상담건수", f"{total_count}건")
             with col2:
-                st.metric("총 매출", f"{int(df_stats['금액_숫자'].sum()):,}원")
+                st.metric("💰 총 상담액", f"{total_amount:,}원")
             with col3:
-                confirmed = len(df_stats[df_stats['상담결과'] == '확정'])
-                st.metric("확정 건수", f"{confirmed}건")
+                st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
+            
+            st.divider()
+            
+            # 중단: 확정/미확정 분석 (2개 열)
+            col4, col5 = st.columns(2)
             with col4:
-                avg = int(df_stats['금액_숫자'].mean()) if len(df_stats) > 0 else 0
-                st.metric("평균 금액", f"{avg:,}원")
+                st.subheader("✅ 확정")
+                st.metric("확정 건수", f"{confirmed_count}건")
+                st.metric("확정 상담액", f"{confirmed_amount:,}원")
+            with col5:
+                st.subheader("❌ 미확정")
+                st.metric("미확정 건수", f"{unconfirmed_count}건")
+                st.metric("미확정 상담액", f"{unconfirmed_amount:,}원")
             
             st.divider()
             
