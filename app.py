@@ -14,45 +14,50 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 try:
     df = conn.read(ttl="0s")
 except:
-    # 요청하신 순서대로 기본 헤더 설정
-    df = pd.DataFrame(columns=["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "주요포인트", "상담내용"])
+    # 금액 항목이 추가된 기본 헤더 설정
+    df = pd.DataFrame(columns=["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용"])
 
 # --- 입력 섹션 ---
 with st.expander("📝 기록", expanded=True):
     
-    # 1행: 상담자 성함 / 상담 결과 (가로 2칸)
+    # 1행: 상담자 성함 / 상담 결과
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
         consultant = st.selectbox("👤상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
     with row1_c2:
-        result = st.selectbox("상담 결과", ["미확정", "확정"])
+        result = st.selectbox("📢 상담 결과", ["미확정", "확정"])
     
-    # 2행: 환자 분류 / 환자 성함 / 차트번호 (가로 3칸)
+    # 2행: 환자 분류 / 환자 성함 / 차트번호
     row2_c1, row2_c2, row2_c3 = st.columns(3)
     with row2_c1:
-        category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+        category = st.selectbox("🏥 환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
     with row2_c2:
-        name = st.text_input("환자 성함")
+        name = st.text_input("👤 환자 성함")
     with row2_c3:
-        chart_no = st.text_input("차트 번호")
+        chart_no = st.text_input("🔢 차트 번호")
+
+    # 3행: 금액 입력 (주요 포인트 위)
+    # 숫자를 입력하기 편하도록 number_input을 사용하며, 기본값은 0으로 설정했습니다.
+    amount = st.number_input("💰 금액 (원 단위)", min_value=0, step=10000, format="%d")
         
-    # 3행: 주요 포인트 (가로 1칸 전체)
+    # 4행: 주요 포인트 (가로 1칸 전체)
     points = st.text_input("📍 주요 포인트 (한 줄 요약)")
     
-    # 4행: 상담 상세내용 (가로 1칸 전체)
+    # 5행: 상담 상세내용 (가로 1칸 전체)
     content = st.text_area("💬 상담 상세 내용", height=200)
 
     # 저장 버튼
     if st.button("💾 스프레드시트에 저장", use_container_width=True):
         if name and content:
-            # 요청하신 새로운 순서로 데이터 구성
+            # 새로운 데이터 구성 (금액 포함)
             new_data = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%y년 %m월 %d일"),
                 "상담자": consultant,
                 "환자성함": name,
-                "차트번호": chart_no, # 분류보다 앞으로 이동
-                "분류": category,    # 차트번호 뒤로 이동
+                "차트번호": chart_no,
+                "분류": category,
                 "상담결과": result,
+                "금액": amount, # 금액 데이터 추가
                 "주요포인트": points,
                 "상담내용": content
             }])
@@ -68,5 +73,4 @@ with st.expander("📝 기록", expanded=True):
 
 # --- 조회 섹션 ---
 st.divider()
-st.subheader("📅 전체 상담 내역")
-st.dataframe(df, use_container_width=True)
+st.subheader
