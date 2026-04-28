@@ -133,16 +133,47 @@ with tab1:
                     lambda x: f"{int(float(x)):,}원" if pd.notnull(x) else ''
                 )
             
-            # HTML 테이블로 렌더링 (보고용)
+            # HTML 테이블로 렌더링 (보고용) - 스타일 개선
             html_table = report_df.to_html(index=False, escape=False)
-            html_table = f"""
-            <div style="overflow-x: auto;">
-            <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
-            {html_table.replace('<table border="1"', '<table style="border-collapse: collapse; width: 100%;"').replace('<tr style="text-align: right;">', '<tr style="text-align: left; border-bottom: 1px solid #ddd;">').replace('<th', '<th style="border-bottom: 2px solid #333; padding: 8px; text-align: left;"').replace('<td', '<td style="padding: 8px; border-bottom: 1px solid #ddd; white-space: normal; word-wrap: break-word;"')}
-            </table>
-            </div>
-            """
-            st.markdown(html_table, unsafe_allow_html=True)
+            
+            # 스타일 개선: 셀 너비, 패딩, 텍스트 정렬
+            html_styled = """
+            <style>
+                .report-table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    font-size: 13px;
+                    font-family: Arial, sans-serif;
+                }
+                .report-table thead tr {
+                    background-color: #f0f0f0;
+                    border-bottom: 2px solid #333;
+                }
+                .report-table th {
+                    padding: 10px;
+                    text-align: left;
+                    font-weight: bold;
+                    border: 1px solid #ddd;
+                    min-width: 80px;
+                }
+                .report-table td {
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    vertical-align: top;
+                    white-space: normal;
+                    word-wrap: break-word;
+                    line-height: 1.5;
+                }
+                .report-table tbody tr:nth-child(odd) {
+                    background-color: #f9f9f9;
+                }
+                .report-table tbody tr:hover {
+                    background-color: #f0f0f0;
+                }
+            </style>
+            """ + html_table.replace('<table border="1"', '<table class="report-table"').replace('<tr style="text-align: right;">', '<tr>')
+            
+            st.markdown(html_styled, unsafe_allow_html=True)
     else:
         st.info("조회할 데이터가 없습니다")
 
