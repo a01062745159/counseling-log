@@ -8,8 +8,14 @@ st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
 st.markdown("""
     <style>
-    [data-testid="stTable"] { font-size: 14px !important; }
-    [data-testid="stTable"] td { white-space: pre-wrap !important; padding: 12px !important; }
+    [data-testid="stDataFrame"] {
+        font-size: 14px !important;
+    }
+    [data-testid="stDataFrame"] td {
+        white-space: pre-wrap !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
