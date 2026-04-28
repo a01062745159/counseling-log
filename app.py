@@ -106,56 +106,150 @@ with st.expander("📝 새 상담 기록하기", expanded=False):
             st.success("✅ 안전하게 저장되었습니다!")
             st.rerun()
 
-# --- 📅 데이터 필터링 로직 ---
-st.divider()
-if not df.empty:
-    df_filtered = df.copy()
+# --- 📊 탭 나누기: 실적 vs 상담기록 ---
+tab1, tab2 = st.tabs(["📊 실적 현황", "📋 상담 기록"])
+
+with tab1:
+    st.header("📊 상담자별 실적 현황")
     
-    # 1. 날짜 필터링 적용
-    df_filtered['temp_date'] = pd.to_datetime(df_filtered['날짜'], errors='coerce').dt.date
-    if not all_view:
-        mask = (df_filtered['temp_date'] >= start_date) & (df_filtered['temp_date'] <= end_date)
-        mask = mask | df_filtered['temp_date'].isna() # 날짜 형식이 다른 과거 데이터도 포함
-        df_filtered = df_filtered.loc[mask]
-
-    # 2. ✅ 상담자 필터링 적용 (핵심!)
-    if selected_counselor != "전체":
-        df_filtered = df_filtered[df_filtered['상담자'] == selected_counselor]
-
-    # 최신순 정렬
-    final_df = df_filtered.drop(columns=['temp_date']).iloc[::-1]
-
-    if view_mode == "🔍 정밀 조회 (확대/정렬)":
-        st.dataframe(
-            final_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
-                "차트번호": st.column_config.TextColumn(alignment="center"),
-                "상담내용": st.column_config.Column(width="large")
-            }
-        )
+    if not df.empty:
+        # 데이터 준비
+        df_stats = df.copy()
+        df_stats['temp_date'] = pd.to_datetime(df_stats['날짜'], errors='coerce').dt.date
+        
+        if not all_view:
+            mask = (df_stats['temp_date'] >= start_date) & (df_stats['temp_date'] <= end_date)
+            mask = mask | df_stats['temp_date'].isna()
+            df_stats = df_stats.loc[mask]
+        
+        # 상담자 선택 (실적 보기)
+        stat_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="stat_counselor")
+        
+        if stat_counselor != "전체":
+            df_stats = df_stats[df_stats['상담자'] == stat_counselor]
+        
+        if not df_stats.empty:
+            # 금액 변환 (숫자로)
+            df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
+            
+            # 1️⃣ 상단: 주요 지표
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_count = len(df_stats)
+                st.metric("📌 상담 건수", f"{total_count}건")
+            
+            with col2:
+                total_amount = df_stats['금액_숫자'].sum()
+                st.metric("💰 총 매출", f"{int(total_amount):,}원")
+            
+            with col3:
+                confirmed = len(df_stats[df_stats['상담결과'] == '확정'])
+                st.metric("✅ 확정 건수", f"{confirmed}건")
+            
+            with col4:
+                avg_amount = df_stats['금액_숫자'].mean()
+                st.metric("📊 평균 금액", f"{int(avg_amount):,}원")
+            
+            st.divider()
+            
+            # 2️⃣ 분류별 건수
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.subheader("🏥 상담 분류별 건수")
+                category_count = df_stats['분류'].value_counts().sort_values(ascending=True)
+                st.bar_chart(category_count)
+            
+            with col_b:
+                st.subheader("📢 상담 결과")
+                result_count = df_stats['상담결과'].value_counts()
+                st.bar_chart(result_count)
+            
+            st.divider()
+            
+            # 3️⃣ 상담자별 실적 (전체 선택시만)
+            if stat_counselor == "전체":
+                st.subheader("👥 상담자별 실적 비교")
+                
+                counselor_stats = df_stats.groupby('상담자').agg({
+                    '환자성함': 'count',  # 상담 건수
+                    '금액_숫자': 'sum',    # 총 금액
+                }).rename(columns={'환자성함': '상담건수', '금액_숫자': '총매출'})
+                
+                counselor_stats['평균금액'] = (counselor_stats['총매출'] / counselor_stats['상담건수']).round(0).astype(int)
+                counselor_stats['총매출'] = counselor_stats['총매출'].astype(int)
+                counselor_stats = counselor_stats.sort_values('총매출', ascending=False)
+                
+                st.dataframe(
+                    counselor_stats,
+                    use_container_width=True,
+                    column_config={
+                        "상담건수": st.column_config.NumberColumn(format="%d건", alignment="center"),
+                        "총매출": st.column_config.NumberColumn(format="%,d원", alignment="right"),
+                        "평균금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
+                    }
+                )
+                
+                st.divider()
+                st.bar_chart(counselor_stats['총매출'])
+        else:
+            st.info("📭 조회 기간에 상담 기록이 없습니다.")
     else:
-        # 📄 보고용 모드 데이터 가공
-        report_df = final_df.copy()
-        report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
-        
-        def clean_chart(x):
-            try: return str(int(float(x))) if pd.notnull(x) and str(x).strip() != "" else ""
-            except: return str(x)
-        report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
+        st.info("📭 데이터가 없습니다.")
 
-        # 기호 세니타이징 (글자 크기 커지는 현상 완전 방어)
-        def sanitize(text):
-            if not isinstance(text, str): return text
-            text = re.sub(r'(?m)^#', '＃', text) # 줄 맨 앞의 # 방어
-            text = text.replace('-', '─')        # 하이픈 연달아 쓰기 방어
-            return text
-
-        report_df['상담내용'] = report_df['상담내용'].apply(sanitize)
-        report_df['주요포인트'] = report_df['주요포인트'].apply(sanitize)
+with tab2:
+    st.header("📋 상담 기록 상세")
+    
+    # --- 📅 데이터 필터링 로직 ---
+    if not df.empty:
+        df_filtered = df.copy()
         
-        st.table(report_df)
-else:
-    st.info("조회할 데이터가 없습니다.")
+        # 1. 날짜 필터링 적용
+        df_filtered['temp_date'] = pd.to_datetime(df_filtered['날짜'], errors='coerce').dt.date
+        if not all_view:
+            mask = (df_filtered['temp_date'] >= start_date) & (df_filtered['temp_date'] <= end_date)
+            mask = mask | df_filtered['temp_date'].isna() # 날짜 형식이 다른 과거 데이터도 포함
+            df_filtered = df_filtered.loc[mask]
+
+        # 2. ✅ 상담자 필터링 적용 (핵심!)
+        if selected_counselor != "전체":
+            df_filtered = df_filtered[df_filtered['상담자'] == selected_counselor]
+
+        # 최신순 정렬
+        final_df = df_filtered.drop(columns=['temp_date']).iloc[::-1]
+
+        if view_mode == "🔍 정밀 조회 (확대/정렬)":
+            st.dataframe(
+                final_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
+                    "차트번호": st.column_config.TextColumn(alignment="center"),
+                    "상담내용": st.column_config.Column(width="large")
+                }
+            )
+        else:
+            # 📄 보고용 모드 데이터 가공
+            report_df = final_df.copy()
+            report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
+            
+            def clean_chart(x):
+                try: return str(int(float(x))) if pd.notnull(x) and str(x).strip() != "" else ""
+                except: return str(x)
+            report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
+
+            # 기호 세니타이징 (글자 크기 커지는 현상 완전 방어)
+            def sanitize(text):
+                if not isinstance(text, str): return text
+                text = re.sub(r'(?m)^#', '＃', text) # 줄 맨 앞의 # 방어
+                text = text.replace('-', '─')        # 하이픈 연달아 쓰기 방어
+                return text
+
+            report_df['상담내용'] = report_df['상담내용'].apply(sanitize)
+            report_df['주요포인트'] = report_df['주요포인트'].apply(sanitize)
+            
+            st.table(report_df)
+    else:
+        st.info("조회할 데이터가 없습니다.")
