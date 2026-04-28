@@ -7,33 +7,29 @@ import re
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
-# --- 🎨 글자 크기 '절대 고정' 스타일 (CSS) ---
+# --- 🎨 글자 크기 '철벽 방어' 스타일 (CSS) ---
 st.markdown("""
     <style>
-    /* 1. 표(st.table) 내부의 모든 요소를 14px로 강제 고정 */
-    [data-testid="stTable"] {
+    /* 1. 표(st.table) 안의 모든 요소를 14px로 강제 고정 (절대 안 커지게) */
+    [data-testid="stTable"] td, [data-testid="stTable"] th {
         font-size: 14px !important;
+        font-family: 'Malgun Gothic', sans-serif !important;
     }
-    /* 2. 혹시라도 생성된 모든 제목 태그(h1~h6)를 일반 글자 크기로 강제 축소 */
-    [data-testid="stTable"] td h1, 
-    [data-testid="stTable"] td h2, 
-    [data-testid="stTable"] td h3,
-    [data-testid="stTable"] td h4,
-    [data-testid="stTable"] td h5,
-    [data-testid="stTable"] td h6 {
+    /* 2. 제목 태그(h1~h6)가 생성되어도 무조건 본문 크기로 출력 */
+    [data-testid="stTable"] h1, [data-testid="stTable"] h2, [data-testid="stTable"] h3,
+    [data-testid="stTable"] h4, [data-testid="stTable"] h5, [data-testid="stTable"] h6 {
         font-size: 14px !important;
         font-weight: bold !important;
         margin: 0 !important;
         padding: 0 !important;
         display: inline !important;
-        line-height: 1.5 !important;
+        color: #333 !important;
     }
-    /* 3. 표 칸 안의 줄바꿈 및 간격 최적화 */
+    /* 3. 줄바꿈 및 간격 최적화 */
     [data-testid="stTable"] td {
         white-space: pre-wrap !important;
         vertical-align: top !important;
         line-height: 1.6 !important;
-        padding: 12px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -129,27 +125,27 @@ if not df.empty:
             }
         )
     else:
-        # --- 📄 보고용 모드 데이터 가공 (여기가 핵심 처방전!) ---
+        # --- 📄 보고용 모드: 기호 오인 방지 가공 ---
         report_df = final_df.copy()
-        report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
         
-        # 차트번호 소수점 제거
+        # 금액 및 차트번호 가공
+        report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
         def clean_chart(x):
             try: return str(int(float(x))) if pd.notnull(x) and str(x).strip() != "" else ""
             except: return str(x)
         report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
 
-        # 💡 [핵심] 제목 기호(#)와 구분선(---)을 무력화하는 데이터 클리닝
-        def clean_markdown(text):
+        # 💡 [핵심 처방] 컴퓨터가 제목으로 오해하는 기호들을 안전한 기호로 변환
+        def sanitize_for_report(text):
             if not isinstance(text, str): return text
-            # 1. 줄 맨 앞의 # 기호를 No. 로 변경
-            text = re.sub(r'(?m)^#', 'No.', text)
-            # 2. 줄 바꿈 후의 구분선(----)을 굵은 선(━━━)으로 변경 (윗줄이 제목이 되는 것 방지)
-            text = re.sub(r'-{3,}', '━━━━━━━━━━━━━━', text)
+            # 1. 줄 맨 앞의 # -> '＃'(전각 문자)로 변경 (컴퓨터는 이걸 제목으로 안 봐요!)
+            text = re.sub(r'(?m)^#', '＃', text)
+            # 2. 하이픈 연달아 쓰기 -> '──'(도형 선)으로 변경 (윗줄 대제목 방지!)
+            text = text.replace('-', '─') 
             return text
 
-        report_df['상담내용'] = report_df['상담내용'].apply(clean_markdown)
-        report_df['주요포인트'] = report_df['주요포인트'].apply(clean_markdown)
+        report_df['상담내용'] = report_df['상담내용'].apply(sanitize_for_report)
+        report_df['주요포인트'] = report_df['주요포인트'].apply(sanitize_for_report)
         
         st.table(report_df)
 else:
