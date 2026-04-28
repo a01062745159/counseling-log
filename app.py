@@ -5,55 +5,74 @@ from datetime import datetime, timedelta
 
 # 페이지 설정
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
+
+# --- 🎨 글자 크기 강제 고정 스타일 (CSS) ---
+st.markdown("""
+    <style>
+    /* 표 내부의 모든 글자 크기 조절 */
+    table {
+        font-size: 13px !important;
+    }
+    /* 제목 기호(#)를 써도 커지지 않게 강제 고정 */
+    td h1, td h2, td h3, td h4, td b {
+        font-size: 13px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    /* 상담내용 칸은 왼쪽 정렬, 나머지는 중앙 */
+    td {
+        vertical-align: middle !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("📂 수려한치과 상담일지")
 
 # 1. 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
-
-# 표준 컬럼 순서
 EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용"]
 
-# 2. 데이터 불러오기 (최대한 가볍게)
+# 2. 데이터 불러오기
 try:
     raw_df = conn.read(ttl="0s")
-    # 환자성함이 비어있는 행은 무시 (로딩 속도 개선)
     df = raw_df.dropna(subset=["환자성함"]).copy()
     if df.empty:
         df = pd.DataFrame(columns=EXPECTED_COLS)
-except Exception as e:
+except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-# --- 사이드바: 날짜 필터 조회 ---
+# --- 사이드바 필터 ---
 with st.sidebar:
-    st.header("🔍 기간별 조회")
+    st.header("🔍 조회 설정")
     today = datetime.now().date()
     start_date = st.date_input("시작일", today - timedelta(days=7))
     end_date = st.date_input("종료일", today)
     
     st.divider()
-    st.caption("팁: 차트번호는 콤마 없이 표시되며, 금액에는 자동으로 콤마가 붙습니다.")
+    view_mode = st.radio("👀 보기 모드", ["🔍 정밀 조회", "📄 보고용"])
+    all_view = st.checkbox("전체 데이터 보기")
 
 # --- 입력 섹션 ---
 with st.expander("📝 새 상담 기록하기", expanded=True):
     row1_c1, row1_c2 = st.columns(2)
     with row1_c1:
-        consultant = st.selectbox("상담자 성함", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
+        consultant = st.selectbox("상담자", ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"])
     with row1_c2:
-        result = st.selectbox("상담 결과", ["미확정", "확정"])
+        result = st.selectbox("결과", ["미확정", "확정"])
     
     row2_c1, row2_c2, row2_c3 = st.columns(3)
     with row2_c1:
-        category = st.selectbox("환자 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
+        category = st.selectbox("분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"])
     with row2_c2:
         name = st.text_input("환자 성함")
     with row2_c3:
         chart_no = st.text_input("차트 번호")
 
-    amount = st.number_input("상담 금액 (원)", min_value=0, step=10000, format="%d")
+    amount = st.number_input("금액 (원)", min_value=0, step=10000, format="%d")
     points = st.text_input("📍 주요 포인트")
-    content = st.text_area("💬 상담 상세 내용", height=150)
+    content = st.text_area("💬 상세 상담 내용", height=150)
 
-    if st.button("💾 스프레드시트에 저장", use_container_width=True):
+    if st.button("💾 저장하기", use_container_width=True):
         if name:
             new_entry = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%y년 %m월 %d일"),
@@ -66,47 +85,47 @@ with st.expander("📝 새 상담 기록하기", expanded=True):
                 "주요포인트": points,
                 "상담내용": content
             }])
-            
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
-            
-            st.success(f"✅ {name} 환자님 기록 완료!")
+            st.success("저장 완료!")
             st.rerun()
-        else:
-            st.warning("⚠️ 환자 성함은 꼭 입력해주세요.")
 
-# --- 조회 및 필터링 섹션 ---
+# --- 데이터 필터링 및 출력 ---
 st.divider()
-st.subheader("📅 상담 내역 내역")
-
 if not df.empty:
-    # 날짜 필터링 로직
-    df_display = df.copy()
-    # 날짜 형식이 달라도 읽을 수 있도록 처리
-    df_display['date_obj'] = pd.to_datetime(df_display['날짜'], errors='coerce').dt.date
+    df_temp = df.copy()
+    df_temp['date_obj'] = pd.to_datetime(df_temp['날짜'], errors='coerce').dt.date
     
-    # 선택한 기간의 데이터만 필터링
-    mask = (df_display['date_obj'] >= start_date) & (df_display['date_obj'] <= end_date)
-    # 날짜 형식이 안 맞아서 NaT가 된 데이터도 일단 포함 (데이터 누락 방지)
-    mask = mask | df_display['date_obj'].isna()
-    df_filtered = df_display.loc[mask].drop(columns=['date_obj'])
+    if not all_view:
+        mask = (df_temp['date_obj'] >= start_date) & (df_temp['date_obj'] <= end_date)
+        mask = mask | df_temp['date_obj'].isna()
+        display_df = df_temp.loc[mask].drop(columns=['date_obj'])
+    else:
+        display_df = df_temp.drop(columns=['date_obj'])
 
-    # 최신순 정렬 및 데이터프레임 표시
-    st.dataframe(
-        df_filtered.iloc[::-1], 
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "금액": st.column_config.NumberColumn("상담 금액", format="%,d원", alignment="right"),
-            "차트번호": st.column_config.TextColumn("차트번호", alignment="center"),
-            "상담내용": st.column_config.Column("상담 상세 내용", width="large"),
-            "주요포인트": st.column_config.Column("주요 포인트", width="medium"),
-            "날짜": st.column_config.Column(alignment="center"),
-            "상담자": st.column_config.Column(alignment="center"),
-            "환자성함": st.column_config.Column(alignment="center"),
-            "분류": st.column_config.Column(alignment="center"),
-            "상담결과": st.column_config.Column(alignment="center"),
-        }
-    )
+    display_df = display_df.iloc[::-1] # 최신순
+
+    if view_mode == "🔍 정밀 조회":
+        st.dataframe(
+            display_df, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "금액": st.column_config.NumberColumn(format="%,d원"),
+                "차트번호": st.column_config.TextColumn()
+            }
+        )
+    else:
+        # 보고서용 표 가공
+        report_df = display_df.copy()
+        report_df['금액'] = report_df['금액'].apply(lambda x: f"{int(float(x or 0)):,}원")
+        # 차트번호 소수점 제거 로직 강화
+        def clean_chart(x):
+            try: return str(int(float(x))) if pd.notnull(x) and str(x).strip() != "" else ""
+            except: return str(x)
+        report_df['차트번호'] = report_df['차트번호'].apply(clean_chart)
+        
+        # HTML로 변환하여 출력 (스타일 유지)
+        st.table(report_df)
 else:
-    st.info("아직 저장된 상담 내역이 없습니다.")
+    st.info("데이터가 없습니다.")
