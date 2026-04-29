@@ -647,46 +647,58 @@ with tab6:
                 from PIL import Image, ImageDraw, ImageFont
                 from io import BytesIO
                 import zipfile
+                import urllib.request
+                import os
+                
+                # 한글 폰트 다운로드 (온라인 - GitHub)
+                font_url = "https://github.com/noto-fonts/noto-cjk/raw/main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf"
+                font_path = "/tmp/noto_font.otf"
+                
+                try:
+                    # 폰트 다운로드
+                    if not os.path.exists(font_path):
+                        urllib.request.urlretrieve(font_url, font_path)
+                    
+                    # 폰트 로드
+                    font_large = ImageFont.truetype(font_path, 32)
+                    font_medium = ImageFont.truetype(font_path, 22)
+                    font_small = ImageFont.truetype(font_path, 16)
+                except Exception as e:
+                    # 폰트 로드 실패 시 기본 폰트
+                    st.warning("⚠️ 한글 폰트를 로드할 수 없어 기본 폰트를 사용합니다.")
+                    font_large = font_medium = font_small = ImageFont.load_default()
                 
                 # ZIP 파일 생성
                 zip_buffer = BytesIO()
                 
                 with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
                     # 1. 통계 정보 이미지 (PIL)
-                    img = Image.new('RGB', (900, 600), color='white')
+                    img = Image.new('RGB', (1000, 700), color='white')
                     draw = ImageDraw.Draw(img)
                     
-                    # 한글 폰트 설정
-                    try:
-                        font_large = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 28)
-                        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 20)
-                        font_small = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 16)
-                    except:
-                        font_large = font_medium = font_small = ImageFont.load_default()
-                    
-                    y_pos = 40
-                    draw.text((50, y_pos), "수려한치과 상담 통계", font=font_large, fill='black')
-                    y_pos += 50
+                    y_pos = 50
+                    draw.text((60, y_pos), "수려한치과 상담 통계", font=font_large, fill='black')
+                    y_pos += 70
                     
                     stats_info = [
                         f"기간: {report_start_date} ~ {report_end_date}",
                         f"상담자: {report_counselor if report_counselor != '전체' else '전체'}",
                         "",
-                        f"전체 상담건수: {total_count}건",
-                        f"총 상담액: {total_amount:,}원",
-                        f"동의율: {agreement_rate:.1f}%",
+                        f"📌 전체 상담건수: {total_count}건",
+                        f"💰 총 상담액: {total_amount:,}원",
+                        f"🎯 동의율: {agreement_rate:.1f}%",
                         "",
-                        f"확정 건수: {confirmed_count}건",
-                        f"확정 상담액: {confirmed_amount:,}원",
+                        f"✅ 확정 건수: {confirmed_count}건",
+                        f"✅ 확정 상담액: {confirmed_amount:,}원",
                         "",
-                        f"미확정 건수: {unconfirmed_count}건",
-                        f"미확정 상담액: {unconfirmed_amount:,}원",
+                        f"❌ 미확정 건수: {unconfirmed_count}건",
+                        f"❌ 미확정 상담액: {unconfirmed_amount:,}원",
                     ]
                     
                     for line in stats_info:
                         font = font_medium if line != "" else font_small
-                        draw.text((50, y_pos), line, font=font, fill='black')
-                        y_pos += 40
+                        draw.text((60, y_pos), line, font=font, fill='black')
+                        y_pos += 45
                     
                     img_bytes = BytesIO()
                     img.save(img_bytes, format='PNG')
@@ -695,17 +707,18 @@ with tab6:
                     
                     # 2. 상담자별 성과 이미지 (PIL)
                     if report_counselor == "전체":
-                        img = Image.new('RGB', (1300, len(counselor_sales_df) * 50 + 150), color='white')
+                        img_height = max(800, len(counselor_sales_df) * 60 + 200)
+                        img = Image.new('RGB', (1400, img_height), color='white')
                         draw = ImageDraw.Draw(img)
                         
-                        y_pos = 40
-                        draw.text((50, y_pos), "상담자별 매출 및 성과", font=font_large, fill='black')
-                        y_pos += 50
+                        y_pos = 50
+                        draw.text((60, y_pos), "상담자별 매출 및 성과", font=font_large, fill='black')
+                        y_pos += 70
                         
                         for _, row in counselor_sales_df.iterrows():
-                            text = f"{row['상담자']} | {row['총매출']} | {row['상담건수']} | {row['평균금액']} | {row['확정건수']} | {row['미확정건수']} | {row['동의율']}"
-                            draw.text((50, y_pos), text, font=font_small, fill='black')
-                            y_pos += 45
+                            text = f"{row['상담자']} | {row['총매출']} | {row['상담건수']}건 | {row['평균금액']} | {row['확정건수']}건 | {row['미확정건수']}건 | {row['동의율']}"
+                            draw.text((60, y_pos), text, font=font_small, fill='black')
+                            y_pos += 50
                         
                         img_bytes = BytesIO()
                         img.save(img_bytes, format='PNG')
@@ -713,13 +726,13 @@ with tab6:
                         zf.writestr('2_성과.png', img_bytes.getvalue())
                     
                     # 3. 상담 내용 이미지 (PIL)
-                    img_height = max(800, len(df_report_sorted) * 80 + 150)
-                    img = Image.new('RGB', (1300, img_height), color='white')
+                    img_height = max(1000, len(df_report_sorted) * 100 + 200)
+                    img = Image.new('RGB', (1400, img_height), color='white')
                     draw = ImageDraw.Draw(img)
                     
-                    y_pos = 40
-                    draw.text((50, y_pos), "상담 보고서", font=font_large, fill='black')
-                    y_pos += 50
+                    y_pos = 50
+                    draw.text((60, y_pos), "상담 보고서", font=font_large, fill='black')
+                    y_pos += 70
                     
                     header_info = [
                         f"기간: {report_start_date} ~ {report_end_date}",
@@ -728,20 +741,20 @@ with tab6:
                     ]
                     
                     for line in header_info:
-                        draw.text((50, y_pos), line, font=font_medium, fill='black')
-                        y_pos += 35
+                        draw.text((60, y_pos), line, font=font_medium, fill='black')
+                        y_pos += 45
                     
-                    y_pos += 20
+                    y_pos += 30
                     
                     for _, row in df_report_sorted.iterrows():
-                        draw.text((50, y_pos), f"[{row['날짜']}] {row['환자성함']}", font=font_small, fill='black')
+                        draw.text((60, y_pos), f"[{row['날짜']}] {row['환자성함']}", font=font_small, fill='black')
+                        y_pos += 35
+                        draw.text((80, y_pos), f"상담자: {row['상담자']}, 진단원장: {row['진단원장']}", font=font_small, fill='#555555')
                         y_pos += 30
-                        draw.text((70, y_pos), f"상담자: {row['상담자']}, 진단원장: {row['진단원장']}", font=font_small, fill='gray')
-                        y_pos += 28
-                        draw.text((70, y_pos), f"분류: {row['분류']}, 결과: {row['상담결과']}, 금액: {format_amount(row['금액']):,}원", font=font_small, fill='gray')
-                        y_pos += 28
-                        draw.text((70, y_pos), f"포인트: {row['주요포인트']}", font=font_small, fill='gray')
-                        y_pos += 32
+                        draw.text((80, y_pos), f"분류: {row['분류']}, 결과: {row['상담결과']}, 금액: {format_amount(row['금액']):,}원", font=font_small, fill='#555555')
+                        y_pos += 30
+                        draw.text((80, y_pos), f"포인트: {row['주요포인트']}", font=font_small, fill='#555555')
+                        y_pos += 40
                     
                     img_bytes = BytesIO()
                     img.save(img_bytes, format='PNG')
