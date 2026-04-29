@@ -105,21 +105,24 @@ def get_counselor_stats(df, counselors):
     for counselor in counselors:
         counselor_data = df[df['상담자'] == counselor]
         
-        total_sales = int(counselor_data['금액_숫자'].sum())
         total_count = len(counselor_data)
-        avg_amount = int(counselor_data['금액_숫자'].mean()) if total_count > 0 else 0
         confirmed = len(counselor_data[counselor_data['상담결과'] == '확정'])
         unconfirmed = len(counselor_data[counselor_data['상담결과'] == '미확정'])
+        
+        # 확정/미확정 매출 분리
+        confirmed_amount = int(counselor_data[counselor_data['상담결과'] == '확정']['금액_숫자'].sum())
+        unconfirmed_amount = int(counselor_data[counselor_data['상담결과'] == '미확정']['금액_숫자'].sum())
+        
         agreement_rate = (confirmed / total_count * 100) if total_count > 0 else 0
         
         counselor_stats_list.append({
             '상담자': counselor,
-            '총매출': f"{total_sales:,}원",
             '상담건수': total_count,
-            '평균금액': f"{avg_amount:,}원",
             '확정건수': confirmed,
             '미확정건수': unconfirmed,
-            '동의율': f"{agreement_rate:.1f}%"
+            '동의율': f"{agreement_rate:.1f}%",
+            '확정매출': f"{confirmed_amount:,}원",
+            '미확정매출': f"{unconfirmed_amount:,}원"
         })
     
     return pd.DataFrame(counselor_stats_list)
