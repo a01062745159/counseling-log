@@ -56,7 +56,8 @@ def load_gsheet_data(conn):
         if '리콜상태' not in df.columns:
             df['리콜상태'] = '미리콜'
         return df
-    except:
+    except Exception as e:
+        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
         return pd.DataFrame()
 
 def calculate_stats(df):
@@ -288,8 +289,12 @@ with tab_report:
     st.header("📄 상담 보고")
     
     # 데이터 새로 읽기 (최신 데이터 가져오기)
-    df_tab2_source = conn.read(ttl="0s")
-    df_tab2_source = df_tab2_source.dropna(subset=["환자성함"]).copy()
+    try:
+        df_tab2_source = conn.read(ttl="0s")
+        df_tab2_source = df_tab2_source.dropna(subset=["환자성함"]).copy()
+    except Exception as e:
+        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        df_tab2_source = pd.DataFrame()
     
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -482,12 +487,16 @@ with tab_stats:
     st.header("📊 상담 일지 통계")
     
     # 데이터 새로고침
-    df_tab5 = conn.read(ttl="0s")
-    df_tab5 = df_tab5.dropna(subset=["환자성함"]).copy()
-    if '진단원장' not in df_tab5.columns:
-        df_tab5['진단원장'] = ''
-    if '리콜상태' not in df_tab5.columns:
-        df_tab5['리콜상태'] = '미리콜'
+    try:
+        df_tab5 = conn.read(ttl="0s")
+        df_tab5 = df_tab5.dropna(subset=["환자성함"]).copy()
+        if '진단원장' not in df_tab5.columns:
+            df_tab5['진단원장'] = ''
+        if '리콜상태' not in df_tab5.columns:
+            df_tab5['리콜상태'] = '미리콜'
+    except Exception as e:
+        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        df_tab5 = pd.DataFrame()
     
     col1, col2, col3 = st.columns(3)
     with col1:
