@@ -69,14 +69,15 @@ try:
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-# ===== 6개 탭 생성 (정렬된 순서) =====
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+# ===== 7개 탭 생성 (정렬된 순서) =====
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📝 상담일지 작성", 
     "📋 상담 기록", 
     "📄 상담 보고", 
     "👤 상담 내용 조회", 
     "📞 미확정 리마인더", 
-    "📊 상담 일지 통계"
+    "📊 상담 일지 통계",
+    "📥 보고자료 내려받기"
 ])
 
 # ===== TAB 1: 상담일지 작성 =====
@@ -449,6 +450,160 @@ with tab6:
                 counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
                 counselor_sales_numeric = counselor_sales_numeric.reindex(COUNSELORS, fill_value=0)
                 st.bar_chart(counselor_sales_numeric)
+        else:
+            st.info("해당 기간에 상담 기록이 없습니다")
+    else:
+        st.info("데이터가 없습니다")
+
+# ===== TAB 7: 보고자료 내려받기 =====
+with tab7:
+    st.header("📥 보고자료 내려받기")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        report_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab7_counselor")
+    with col2:
+        today = datetime.now().date()
+        report_start_date = st.date_input("시작일", today, key="tab7_start")
+    with col3:
+        report_end_date = st.date_input("종료일", today, key="tab7_end")
+    
+    if not df.empty:
+        df_report = df.copy()
+        df_report['금액_숫자'] = pd.to_numeric(df_report['금액'], errors='coerce').fillna(0)
+        
+        start_str = report_start_date.strftime("%Y-%m-%d")
+        end_str = report_end_date.strftime("%Y-%m-%d")
+        df_report = df_report[(df_report['날짜'] >= start_str) & (df_report['날짜'] <= end_str)]
+        
+        if report_counselor != "전체":
+            df_report = df_report[df_report['상담자'] == report_counselor]
+        
+        if not df_report.empty:
+            # 통계 계산
+            total_count = len(df_report)
+            total_amount = int(df_report['금액_숫자'].sum())
+            confirmed_count = len(df_report[df_report['상담결과'] == '확정'])
+            unconfirmed_count = len(df_report[df_report['상담결과'] == '미확정'])
+            confirmed_amount = int(df_report[df_report['상담결과'] == '확정']['금액_숫자'].sum())
+            unconfirmed_amount = int(df_report[df_report['상담결과'] == '미확정']['금액_숫자'].sum())
+            agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+            
+            # 상단 통계 표시
+            st.subheader("📊 상담 통계")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📌 전체 상담건수", f"{total_count}건")
+            with col2:
+                st.metric("💰 총 상담액", f"{total_amount:,}원")
+            with col3:
+                st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
+            
+            col4, col5 = st.columns(2)
+            with col4:
+                st.metric("✅ 확정 건수", f"{confirmed_count}건")
+                st.metric("✅ 확정 상담액", f"{confirmed_amount:,}원")
+            with col5:
+                st.metric("❌ 미확정 건수", f"{unconfirmed_count}건")
+                st.metric("❌ 미확정 상담액", f"{unconfirmed_amount:,}원")
+            
+            st.divider()
+            
+            # 상담자별 매출 및 성과
+            st.subheader("👥 상담자별 매출 및 성과")
+            
+            if report_counselor == "전체":
+                counselor_stats_list = []
+                for counselor in COUNSELORS:
+                    counselor_data = df_report[df_report['상담자'] == counselor]
+                    
+                    total_sales = int(counselor_data['금액_숫자'].sum())
+                    total_count = len(counselor_data)
+                    avg_amount = int(counselor_data['금액_숫자'].mean()) if total_count > 0 else 0
+                    confirmed = len(counselor_data[counselor_data['상담결과'] == '확정'])
+                    unconfirmed = len(counselor_data[counselor_data['상담결과'] == '미확정'])
+                    agreement_rate = (confirmed / total_count * 100) if total_count > 0 else 0
+                    
+                    counselor_stats_list.append({
+                        '상담자': counselor,
+                        '총매출': f"{total_sales:,}원",
+                        '상담건수': total_count,
+                        '평균금액': f"{avg_amount:,}원",
+                        '확정건수': confirmed,
+                        '미확정건수': unconfirmed,
+                        '동의율': f"{agreement_rate:.1f}%"
+                    })
+                
+                counselor_sales_df = pd.DataFrame(counselor_stats_list)
+                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("전체 상담자를 선택해야 상담자별 성과를 볼 수 있습니다.")
+            
+            st.divider()
+            
+            # 상담 보고 내용
+            st.subheader("📝 상담 보고 내용")
+            df_report_sorted = df_report.iloc[::-1]
+            
+            for idx, row in df_report_sorted.iterrows():
+                with st.expander(
+                    f"📌 {row['날짜']} - {row['환자성함']} (차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) and str(row['차트번호']).strip() != '' else ''}) - {row['상담자']}", 
+                    expanded=False
+                ):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**진단 원장:** {row['진단원장']}")
+                        st.write(f"**분류:** {row['분류']}")
+                        st.write(f"**상담결과:** {row['상담결과']}")
+                    with col2:
+                        st.write(f"**금액:** {int(float(row['금액'])):,}원")
+                        st.write(f"**상담자:** {row['상담자']}")
+                    
+                    st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                    st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+            
+            st.divider()
+            
+            # Excel 다운로드
+            st.subheader("📥 Excel 다운로드")
+            
+            try:
+                import openpyxl
+                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                from io import BytesIO
+                
+                # Excel 파일 생성
+                output = BytesIO()
+                
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    # 1. 통계 시트
+                    stats_data = {
+                        '항목': ['전체 상담건수', '총 상담액', '동의율', '확정 건수', '확정 상담액', '미확정 건수', '미확정 상담액'],
+                        '값': [f"{total_count}건", f"{total_amount:,}원", f"{agreement_rate:.1f}%", 
+                               f"{confirmed_count}건", f"{confirmed_amount:,}원", f"{unconfirmed_count}건", f"{unconfirmed_amount:,}원"]
+                    }
+                    stats_df = pd.DataFrame(stats_data)
+                    stats_df.to_excel(writer, sheet_name='통계', index=False)
+                    
+                    # 2. 상담자별 성과 시트
+                    if report_counselor == "전체":
+                        counselor_sales_df.to_excel(writer, sheet_name='상담자별성과', index=False)
+                    
+                    # 3. 상담 내용 시트
+                    report_export_df = df_report_sorted[['날짜', '상담자', '진단원장', '환자성함', '차트번호', '분류', '상담결과', '금액', '주요포인트', '상담내용']].copy()
+                    report_export_df.to_excel(writer, sheet_name='상담내용', index=False)
+                
+                output.seek(0)
+                
+                st.download_button(
+                    label="📥 Excel 파일 다운로드",
+                    data=output.getvalue(),
+                    file_name=f"수려한치과_상담보고_{report_start_date.strftime('%Y%m%d')}_{report_end_date.strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            except ImportError:
+                st.warning("⚠️ Excel 기능을 사용하려면 openpyxl 라이브러리가 필요합니다.")
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
