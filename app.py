@@ -569,6 +569,135 @@ with tab6:
                     )
                 except ImportError:
                     st.warning("⚠️ Excel 기능을 사용하려면 openpyxl 라이브러리가 필요합니다.")
+                
+                st.divider()
+                
+                # PNG 이미지 다운로드
+                st.subheader("📸 이미지 다운로드 (카톡 공유용)")
+                
+                import matplotlib.pyplot as plt
+                import matplotlib
+                matplotlib.rcParams['font.family'] = 'DejaVu Sans'
+                
+                col_png1, col_png2, col_png3 = st.columns(3)
+                
+                # 1. 통계 정보 PNG
+                with col_png1:
+                    if st.button("📊 통계 PNG", use_container_width=True, key="btn_stats_png"):
+                        fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+                        ax.axis('off')
+                        
+                        stats_text = f"""수려한치과 상담 통계
+기간: {report_start_date} ~ {report_end_date}
+상담자: {report_counselor if report_counselor != '전체' else '전체'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 전체 상담건수: {total_count}건
+💰 총 상담액: {total_amount:,}원
+🎯 동의율: {agreement_rate:.1f}%
+
+✅ 확정 건수: {confirmed_count}건
+✅ 확정 상담액: {confirmed_amount:,}원
+
+❌ 미확정 건수: {unconfirmed_count}건
+❌ 미확정 상담액: {unconfirmed_amount:,}원
+━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+                        
+                        ax.text(0.5, 0.5, stats_text, ha='center', va='center', 
+                               fontsize=12, family='monospace',
+                               bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
+                        
+                        from io import BytesIO
+                        img_bytes = BytesIO()
+                        plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
+                        img_bytes.seek(0)
+                        plt.close()
+                        
+                        st.download_button(
+                            label="📥 다운로드",
+                            data=img_bytes.getvalue(),
+                            file_name=f"통계_{report_start_date.strftime('%Y%m%d')}.png",
+                            mime="image/png",
+                            use_container_width=True,
+                            key="download_stats_png"
+                        )
+                
+                # 2. 상담자별 성과 PNG
+                with col_png2:
+                    if report_counselor == "전체":
+                        if st.button("👥 성과 PNG", use_container_width=True, key="btn_perf_png"):
+                            fig, ax = plt.subplots(figsize=(11, 7), dpi=100)
+                            ax.axis('off')
+                            
+                            perf_text = "상담자별 매출 및 성과\n\n"
+                            perf_text += "상담자 | 총매출 | 건수 | 평균금액 | 확정 | 미확정 | 동의율\n"
+                            perf_text += "━" * 75 + "\n"
+                            
+                            for _, row in counselor_sales_df.iterrows():
+                                perf_text += f"{row['상담자']} | {row['총매출']} | {row['상담건수']}건 | {row['평균금액']} | {row['확정건수']}건 | {row['미확정건수']}건 | {row['동의율']}\n"
+                            
+                            ax.text(0.05, 0.95, perf_text, ha='left', va='top', 
+                                   fontsize=10, family='monospace',
+                                   bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.2))
+                            
+                            from io import BytesIO
+                            img_bytes = BytesIO()
+                            plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
+                            img_bytes.seek(0)
+                            plt.close()
+                            
+                            st.download_button(
+                                label="📥 다운로드",
+                                data=img_bytes.getvalue(),
+                                file_name=f"성과_{report_start_date.strftime('%Y%m%d')}.png",
+                                mime="image/png",
+                                use_container_width=True,
+                                key="download_perf_png"
+                            )
+                    else:
+                        st.info("👤 전체 선택 시\n성과 이미지 가능")
+                
+                # 3. 상담 내용 PNG
+                with col_png3:
+                    if st.button("📝 상담내용 PNG", use_container_width=True, key="btn_content_png"):
+                        fig, ax = plt.subplots(figsize=(12, 10), dpi=100)
+                        ax.axis('off')
+                        
+                        content_text = f"""수려한치과 상담 보고서
+기간: {report_start_date} ~ {report_end_date}
+상담자: {report_counselor if report_counselor != '전체' else '전체'}
+총 {len(df_report_sorted)}건
+
+"""
+                        
+                        for idx, row in df_report_sorted.head(15).iterrows():
+                            content_text += f"\n[{row['날짜']}] {row['환자성함']}\n"
+                            content_text += f"상담자: {row['상담자']}, 진단원장: {row['진단원장']}\n"
+                            content_text += f"분류: {row['분류']}, 결과: {row['상담결과']}, 금액: {int(float(row['금액'])):,}원\n"
+                            content_text += f"포인트: {row['주요포인트']}\n"
+                            content_text += "─" * 60 + "\n"
+                        
+                        if len(df_report_sorted) > 15:
+                            content_text += f"\n... 외 {len(df_report_sorted) - 15}건 더 있습니다"
+                        
+                        ax.text(0.05, 0.98, content_text, ha='left', va='top', 
+                               fontsize=9, family='monospace',
+                               bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.2))
+                        
+                        from io import BytesIO
+                        img_bytes = BytesIO()
+                        plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
+                        img_bytes.seek(0)
+                        plt.close()
+                        
+                        st.download_button(
+                            label="📥 다운로드",
+                            data=img_bytes.getvalue(),
+                            file_name=f"상담내용_{report_start_date.strftime('%Y%m%d')}.png",
+                            mime="image/png",
+                            use_container_width=True,
+                            key="download_content_png"
+                        )
             else:
                 st.info("해당 기간에 상담 기록이 없습니다")
         else:
