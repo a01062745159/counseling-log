@@ -526,6 +526,12 @@ with tab_stats:
                 result_data = result_data.reindex(result_order, fill_value=0)
                 if not result_data.empty:
                     st.bar_chart(result_data)
+                    # 표로 숫자 표시
+                    result_display = pd.DataFrame({
+                        '상담결과': result_order,
+                        '건수': [result_data[r] for r in result_order]
+                    })
+                    st.dataframe(result_display, use_container_width=True, hide_index=True)
             
             with col_b:
                 st.subheader("분류별 건수")
@@ -534,6 +540,12 @@ with tab_stats:
                 category_data = category_data.reindex(category_order, fill_value=0)
                 if not category_data.empty:
                     st.bar_chart(category_data)
+                    # 표로 숫자 표시
+                    category_display = pd.DataFrame({
+                        '분류': category_order,
+                        '건수': [category_data[c] for c in category_order]
+                    })
+                    st.dataframe(category_display, use_container_width=True, hide_index=True)
             
             st.divider()
             
