@@ -526,7 +526,6 @@ with tab_stats:
                 result_data = result_data.reindex(result_order, fill_value=0)
                 if not result_data.empty:
                     st.bar_chart(result_data)
-                    st.write(result_data)
             
             with col_b:
                 st.subheader("분류별 건수")
@@ -535,7 +534,6 @@ with tab_stats:
                 category_data = category_data.reindex(category_order, fill_value=0)
                 if not category_data.empty:
                     st.bar_chart(category_data)
-                    st.write(category_data)
             
             st.divider()
             
