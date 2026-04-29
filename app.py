@@ -51,12 +51,17 @@ if not st.session_state.logged_in:
 st.title("📂 수려한치과 상담일지")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
-EXPECTED_COLS = ["날짜", "상담자", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용", "리콜상태"]
+EXPECTED_COLS = ["날짜", "상담자", "진단원장", "환자성함", "차트번호", "분류", "상담결과", "금액", "주요포인트", "상담내용", "리콜상태"]
 COUNSELORS = ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장"]
+DOCTORS = ["안정선 대표원장", "김동현 대표원장", "이성재 수석원장", "박지호 원장", "이동호 원장", "신효담 원장", "구다솜 원장", "강순영 원장(교정)", "윤소정 원장(교정)"]
 
 try:
     df = conn.read(ttl="0s")
     df = df.dropna(subset=["환자성함"]).copy()
+    
+    # 진단원장 컬럼이 없으면 추가 (기존 데이터 호환성)
+    if '진단원장' not in df.columns:
+        df['진단원장'] = ''
     
     # 리콜상태 컬럼이 없으면 추가 (기존 데이터 호환성)
     if '리콜상태' not in df.columns:
@@ -78,10 +83,12 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.header("📝 상담일지 작성")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         consultant = st.selectbox("👤 담당 상담자", COUNSELORS, key="tab1_counselor")
     with col2:
+        doctor = st.selectbox("👨‍⚕️ 진단 원장님", DOCTORS, key="tab1_doctor")
+    with col3:
         result = st.selectbox("📢 결과", ["미확정", "확정"], key="tab1_result")
     
     col3, col4, col5 = st.columns(3)
@@ -101,6 +108,7 @@ with tab1:
             new_entry = pd.DataFrame([{
                 "날짜": datetime.now().strftime("%Y-%m-%d"),
                 "상담자": consultant,
+                "진단원장": doctor,
                 "환자성함": name,
                 "차트번호": chart_no,
                 "분류": category,
@@ -255,7 +263,7 @@ with tab5:
             df_reminder['경과일'] = df_reminder['날짜'].apply(
                 lambda x: (today - datetime.strptime(x, "%Y-%m-%d").date()).days
             )
-            df_reminder = df_reminder[df_reminder['경과일'] >= 10]
+            df_reminder = df_reminder[df_reminder['경과일'] >= 7]
             
             if not df_reminder.empty:
                 df_reminder['리콜상태'] = df_reminder['리콜상태'].fillna('미리콜')
@@ -269,7 +277,7 @@ with tab5:
                     st.divider()
                     for idx, row in df_need_recall.iterrows():
                         with st.expander(
-                            f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 경과 | {int(float(row['금액'])):,}원 | {row['상담자']}", 
+                            f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 경과 | {int(float(row['금액'])):,}원 | ❌ {row['상담결과']} | {row['상담자']}", 
                             expanded=True
                         ):
                             col1, col2 = st.columns([3, 1])
