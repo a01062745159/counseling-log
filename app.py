@@ -126,6 +126,7 @@ with tab1:
             }])
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
+            
             st.success("✅ 저장되었습니다!", icon="✅")
             st.balloons()  # 풍선 효과
             
@@ -169,7 +170,22 @@ with tab1:
                             st.write(f"**주요포인트:** {row['주요포인트']}")
                         st.write(f"**상담내용:** {row['상담내용']}")
             
-            st.rerun()
+            # 입력 필드 초기화 (session_state)
+            st.session_state.tab1_counselor = COUNSELORS[0]
+            st.session_state.tab1_doctor = DOCTORS[0]
+            st.session_state.tab1_result = "미확정"
+            st.session_state.tab1_category = "예약 신환"
+            st.session_state.tab1_name = ""
+            st.session_state.tab1_chart = ""
+            st.session_state.tab1_amount = 0
+            st.session_state.tab1_points = ""
+            st.session_state.tab1_content = ""
+            st.session_state.tab1_date = datetime.now().date()
+            
+            st.divider()
+            st.info("✏️ 다음 상담일지를 입력해주세요!")
+        else:
+            st.warning("⚠️ 환자명과 상담내용은 필수입니다.")
 
 # ===== TAB 2: 상담 보고 (보고용) =====
 with tab2:
