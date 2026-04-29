@@ -25,6 +25,105 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# ===== 📋 Helper Functions (반복 코드 제거) =====
+def format_amount(value):
+    """금액을 정수로 변환"""
+    try:
+        return int(float(value)) if pd.notnull(value) else 0
+    except:
+        return 0
+
+def format_chart_no(value):
+    """차트번호 포맷팅"""
+    try:
+        return str(int(float(value))) if pd.notnull(value) and str(value).strip() != '' else ""
+    except:
+        return ""
+
+def filter_by_date_range(df, start_date, end_date):
+    """날짜 범위로 데이터 필터링"""
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return df[(df['날짜'] >= start_str) & (df['날짜'] <= end_str)].copy()
+
+def load_gsheet_data(conn):
+    """Google Sheet에서 데이터 로드"""
+    try:
+        df = conn.read(ttl="0s")
+        df = df.dropna(subset=["환자성함"]).copy()
+        if '진단원장' not in df.columns:
+            df['진단원장'] = ''
+        if '리콜상태' not in df.columns:
+            df['리콜상태'] = '미리콜'
+        return df
+    except:
+        return pd.DataFrame()
+
+def calculate_stats(df):
+    """통계 계산"""
+    df['금액_숫자'] = pd.to_numeric(df['금액'], errors='coerce').fillna(0)
+    
+    total_count = len(df)
+    total_amount = int(df['금액_숫자'].sum())
+    confirmed_count = len(df[df['상담결과'] == '확정'])
+    unconfirmed_count = len(df[df['상담결과'] == '미확정'])
+    confirmed_amount = int(df[df['상담결과'] == '확정']['금액_숫자'].sum())
+    unconfirmed_amount = int(df[df['상담결과'] == '미확정']['금액_숫자'].sum())
+    agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+    
+    return {
+        'total_count': total_count,
+        'total_amount': total_amount,
+        'confirmed_count': confirmed_count,
+        'unconfirmed_count': unconfirmed_count,
+        'confirmed_amount': confirmed_amount,
+        'unconfirmed_amount': unconfirmed_amount,
+        'agreement_rate': agreement_rate
+    }
+
+def display_stats_metrics(stats):
+    """통계 메트릭 표시"""
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📌 전체 상담건수", f"{stats['total_count']}건")
+    with col2:
+        st.metric("💰 총 상담액", f"{stats['total_amount']:,}원")
+    with col3:
+        st.metric("🎯 동의율", f"{stats['agreement_rate']:.1f}%")
+    
+    col4, col5 = st.columns(2)
+    with col4:
+        st.metric("✅ 확정 건수", f"{stats['confirmed_count']}건")
+        st.metric("✅ 확정 상담액", f"{stats['confirmed_amount']:,}원")
+    with col5:
+        st.metric("❌ 미확정 건수", f"{stats['unconfirmed_count']}건")
+        st.metric("❌ 미확정 상담액", f"{stats['unconfirmed_amount']:,}원")
+
+def get_counselor_stats(df, counselors):
+    """상담자별 통계 계산"""
+    counselor_stats_list = []
+    for counselor in counselors:
+        counselor_data = df[df['상담자'] == counselor]
+        
+        total_sales = int(counselor_data['금액_숫자'].sum())
+        total_count = len(counselor_data)
+        avg_amount = int(counselor_data['금액_숫자'].mean()) if total_count > 0 else 0
+        confirmed = len(counselor_data[counselor_data['상담결과'] == '확정'])
+        unconfirmed = len(counselor_data[counselor_data['상담결과'] == '미확정'])
+        agreement_rate = (confirmed / total_count * 100) if total_count > 0 else 0
+        
+        counselor_stats_list.append({
+            '상담자': counselor,
+            '총매출': f"{total_sales:,}원",
+            '상담건수': total_count,
+            '평균금액': f"{avg_amount:,}원",
+            '확정건수': confirmed,
+            '미확정건수': unconfirmed,
+            '동의율': f"{agreement_rate:.1f}%"
+        })
+    
+    return pd.DataFrame(counselor_stats_list)
+
 # ===== 🔒 로그인 기능 =====
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -55,19 +154,8 @@ EXPECTED_COLS = ["날짜", "상담자", "진단원장", "환자성함", "차트�
 COUNSELORS = ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장", "배지윤 팀장", "김소연 팀장", "최수진 팀장"]
 DOCTORS = ["안정선 대표원장", "김동현 대표원장", "이성재 수석원장", "박지호 원장", "이동호 원장", "신효담 원장", "구다솜 원장", "강순영 원장(교정)", "윤소정 원장(교정)"]
 
-try:
-    df = conn.read(ttl="0s")
-    df = df.dropna(subset=["환자성함"]).copy()
-    
-    # 진단원장 컬럼이 없으면 추가 (기존 데이터 호환성)
-    if '진단원장' not in df.columns:
-        df['진단원장'] = ''
-    
-    # 리콜상태 컬럼이 없으면 추가 (기존 데이터 호환성)
-    if '리콜상태' not in df.columns:
-        df['리콜상태'] = '미리콜'
-except:
-    df = pd.DataFrame(columns=EXPECTED_COLS)
+# 데이터 로드
+df = load_gsheet_data(conn)
 
 # ===== 6개 탭 생성 (정렬된 순서) =====
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -210,7 +298,7 @@ with tab2:
         
         st.subheader("📝 상담내용 상세")
         for idx, row in df_tab2.iterrows():
-            with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) and str(row['차트번호']).strip() != '' else ''}) - {row['상담자']}", expanded=True):
+            with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
                 st.markdown(f"**주요포인트:** {row['주요포인트']}")
                 st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
     else:
@@ -238,7 +326,7 @@ with tab3:
                 st.divider()
                 
                 for idx, row in df_search.iterrows():
-                    chart_num = str(int(float(row['차트번호']))) if pd.notnull(row['차트번호']) and str(row['차트번호']).strip() != '' else ""
+                    chart_num = format_chart_no(row['차트번호'])
                     with st.expander(
                         f"📌 {row['날짜']} - {row['환자성함']} (차트: {chart_num}) - {row['상담자']}", 
                         expanded=False
@@ -287,7 +375,7 @@ with tab4:
                     st.divider()
                     for idx, row in df_need_recall.iterrows():
                         with st.expander(
-                            f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 경과 | {int(float(row['금액'])):,}원 | ❌ {row['상담결과']} | {row['상담자']}", 
+                            f"👤 {row['환자성함']} | 차트: {format_chart_no(row['차트번호'])} | {row['경과일']}일 경과 | {format_amount(row['금액']):,}원 | ❌ {row['상담결과']} | {row['상담자']}", 
                             expanded=True
                         ):
                             col1, col2 = st.columns([3, 1])
@@ -321,7 +409,7 @@ with tab4:
                     with st.expander(f"✅ 리콜 완료 ({len(df_recalled)}명)", expanded=False):
                         for idx, row in df_recalled.iterrows():
                             with st.expander(
-                                f"👤 {row['환자성함']} | 차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) else ''} | {row['경과일']}일 | {int(float(row['금액'])):,}원 | {row['상담자']}", 
+                                f"👤 {row['환자성함']} | 차트: {format_chart_no(row['차트번호'])} | {row['경과일']}일 | {format_amount(row['금액']):,}원 | {row['상담자']}", 
                                 expanded=False
                             ):
                                 col1, col2 = st.columns([3, 1])
@@ -388,33 +476,11 @@ with tab5:
             df_stats = df_stats[df_stats['상담자'] == selected_counselor_tab5]
         
         if not df_stats.empty:
-            total_count = len(df_stats)
-            total_amount = int(df_stats['금액_숫자'].sum())
-            confirmed_count = len(df_stats[df_stats['상담결과'] == '확정'])
-            unconfirmed_count = len(df_stats[df_stats['상담결과'] == '미확정'])
-            confirmed_amount = int(df_stats[df_stats['상담결과'] == '확정']['금액_숫자'].sum())
-            unconfirmed_amount = int(df_stats[df_stats['상담결과'] == '미확정']['금액_숫자'].sum())
-            agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+            # 통계 계산
+            stats = calculate_stats(df_stats)
             
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📌 전체 상담건수", f"{total_count}건")
-            with col2:
-                st.metric("💰 총 상담액", f"{total_amount:,}원")
-            with col3:
-                st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
-            
-            st.divider()
-            
-            col4, col5 = st.columns(2)
-            with col4:
-                st.subheader("✅ 확정")
-                st.metric("확정 건수", f"{confirmed_count}건")
-                st.metric("확정 상담액", f"{confirmed_amount:,}원")
-            with col5:
-                st.subheader("❌ 미확정")
-                st.metric("미확정 건수", f"{unconfirmed_count}건")
-                st.metric("미확정 상담액", f"{unconfirmed_amount:,}원")
+            # 통계 메트릭 표시
+            display_stats_metrics(stats)
             
             st.divider()
             
@@ -440,28 +506,7 @@ with tab5:
             if selected_counselor_tab5 == "전체":
                 st.subheader("👥 상담자별 매출 및 성과")
                 
-                counselor_stats_list = []
-                for counselor in COUNSELORS:
-                    counselor_data = df_stats[df_stats['상담자'] == counselor]
-                    
-                    total_sales = int(counselor_data['금액_숫자'].sum())
-                    total_count = len(counselor_data)
-                    avg_amount = int(counselor_data['금액_숫자'].mean()) if total_count > 0 else 0
-                    confirmed = len(counselor_data[counselor_data['상담결과'] == '확정'])
-                    unconfirmed = len(counselor_data[counselor_data['상담결과'] == '미확정'])
-                    agreement_rate = (confirmed / total_count * 100) if total_count > 0 else 0
-                    
-                    counselor_stats_list.append({
-                        '상담자': counselor,
-                        '총매출': f"{total_sales:,}원",
-                        '상담건수': total_count,
-                        '평균금액': f"{avg_amount:,}원",
-                        '확정건수': confirmed,
-                        '미확정건수': unconfirmed,
-                        '동의율': f"{agreement_rate:.1f}%"
-                    })
-                
-                counselor_sales_df = pd.DataFrame(counselor_stats_list)
+                counselor_sales_df = get_counselor_stats(df_stats, COUNSELORS)
                 st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
                 
                 counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
@@ -504,31 +549,18 @@ with tab6:
             
             if not df_report.empty:
                 # 통계 계산
-                total_count = len(df_report)
-                total_amount = int(df_report['금액_숫자'].sum())
-                confirmed_count = len(df_report[df_report['상담결과'] == '확정'])
-                unconfirmed_count = len(df_report[df_report['상담결과'] == '미확정'])
-                confirmed_amount = int(df_report[df_report['상담결과'] == '확정']['금액_숫자'].sum())
-                unconfirmed_amount = int(df_report[df_report['상담결과'] == '미확정']['금액_숫자'].sum())
-                agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+                stats = calculate_stats(df_report)
+                total_count = stats['total_count']
+                total_amount = stats['total_amount']
+                confirmed_count = stats['confirmed_count']
+                unconfirmed_count = stats['unconfirmed_count']
+                confirmed_amount = stats['confirmed_amount']
+                unconfirmed_amount = stats['unconfirmed_amount']
+                agreement_rate = stats['agreement_rate']
                 
                 # 상단 통계 표시
                 st.subheader("📊 상담 통계")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("📌 전체 상담건수", f"{total_count}건")
-                with col2:
-                    st.metric("💰 총 상담액", f"{total_amount:,}원")
-                with col3:
-                    st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
-                
-                col4, col5 = st.columns(2)
-                with col4:
-                    st.metric("✅ 확정 건수", f"{confirmed_count}건")
-                    st.metric("✅ 확정 상담액", f"{confirmed_amount:,}원")
-                with col5:
-                    st.metric("❌ 미확정 건수", f"{unconfirmed_count}건")
-                    st.metric("❌ 미확정 상담액", f"{unconfirmed_amount:,}원")
+                display_stats_metrics(stats)
                 
                 st.divider()
                 
@@ -536,28 +568,7 @@ with tab6:
                 st.subheader("👥 상담자별 매출 및 성과")
                 
                 if report_counselor == "전체":
-                    counselor_stats_list = []
-                    for counselor in COUNSELORS:
-                        counselor_data = df_report[df_report['상담자'] == counselor]
-                        
-                        total_sales = int(counselor_data['금액_숫자'].sum())
-                        total_count = len(counselor_data)
-                        avg_amount = int(counselor_data['금액_숫자'].mean()) if total_count > 0 else 0
-                        confirmed = len(counselor_data[counselor_data['상담결과'] == '확정'])
-                        unconfirmed = len(counselor_data[counselor_data['상담결과'] == '미확정'])
-                        agreement_rate = (confirmed / total_count * 100) if total_count > 0 else 0
-                        
-                        counselor_stats_list.append({
-                            '상담자': counselor,
-                            '총매출': f"{total_sales:,}원",
-                            '상담건수': total_count,
-                            '평균금액': f"{avg_amount:,}원",
-                            '확정건수': confirmed,
-                            '미확정건수': unconfirmed,
-                            '동의율': f"{agreement_rate:.1f}%"
-                        })
-                    
-                    counselor_sales_df = pd.DataFrame(counselor_stats_list)
+                    counselor_sales_df = get_counselor_stats(df_report, COUNSELORS)
                     st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
                 else:
                     st.info("전체 상담자를 선택해야 상담자별 성과를 볼 수 있습니다.")
@@ -570,7 +581,7 @@ with tab6:
                 
                 for idx, row in df_report_sorted.iterrows():
                     with st.expander(
-                        f"📌 {row['날짜']} - {row['환자성함']} (차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) and str(row['차트번호']).strip() != '' else ''}) - {row['상담자']}", 
+                        f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", 
                         expanded=False
                     ):
                         col1, col2 = st.columns(2)
@@ -579,7 +590,7 @@ with tab6:
                             st.write(f"**분류:** {row['분류']}")
                             st.write(f"**상담결과:** {row['상담결과']}")
                         with col2:
-                            st.write(f"**금액:** {int(float(row['금액'])):,}원")
+                            st.write(f"**금액:** {format_amount(row['금액']):,}원")
                             st.write(f"**상담자:** {row['상담자']}")
                         
                         st.markdown(f"**주요포인트:** {row['주요포인트']}")
@@ -727,7 +738,7 @@ with tab6:
                         y_pos += 30
                         draw.text((70, y_pos), f"상담자: {row['상담자']}, 진단원장: {row['진단원장']}", font=font_small, fill='gray')
                         y_pos += 28
-                        draw.text((70, y_pos), f"분류: {row['분류']}, 결과: {row['상담결과']}, 금액: {int(float(row['금액'])):,}원", font=font_small, fill='gray')
+                        draw.text((70, y_pos), f"분류: {row['분류']}, 결과: {row['상담결과']}, 금액: {format_amount(row['금액']):,}원", font=font_small, fill='gray')
                         y_pos += 28
                         draw.text((70, y_pos), f"포인트: {row['주요포인트']}", font=font_small, fill='gray')
                         y_pos += 32
