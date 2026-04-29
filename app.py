@@ -525,7 +525,18 @@ with tab_stats:
                 result_order = ['확정', '미확정']
                 result_data = result_data.reindex(result_order, fill_value=0)
                 if not result_data.empty:
-                    st.bar_chart(result_data)
+                    import matplotlib.pyplot as plt
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    bars = ax.bar(result_data.index, result_data.values, color=['#1f77b4', '#ff7f0e'])
+                    # 값을 상단에 표시
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height,
+                               f'{int(height)}',
+                               ha='center', va='bottom', fontsize=12, fontweight='bold')
+                    ax.set_ylabel('건수')
+                    plt.tight_layout()
+                    st.pyplot(fig)
             
             with col_b:
                 st.subheader("분류별 건수")
@@ -533,7 +544,20 @@ with tab_stats:
                 category_order = ['예약 신환', '미예약 신환', '예약 구환', '미예약 구환']
                 category_data = category_data.reindex(category_order, fill_value=0)
                 if not category_data.empty:
-                    st.bar_chart(category_data)
+                    import matplotlib.pyplot as plt
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    bars = ax.bar(range(len(category_data)), category_data.values, color='#2ca02c')
+                    ax.set_xticks(range(len(category_data)))
+                    ax.set_xticklabels(category_data.index, rotation=45, ha='right')
+                    # 값을 상단에 표시
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height,
+                               f'{int(height)}',
+                               ha='center', va='bottom', fontsize=12, fontweight='bold')
+                    ax.set_ylabel('건수')
+                    plt.tight_layout()
+                    st.pyplot(fig)
             
             st.divider()
             
@@ -545,7 +569,24 @@ with tab_stats:
                 
                 counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
                 counselor_sales_numeric = counselor_sales_numeric.reindex(COUNSELORS, fill_value=0)
-                st.bar_chart(counselor_sales_numeric)
+                counselor_sales_numeric = counselor_sales_numeric[counselor_sales_numeric > 0]
+                
+                if not counselor_sales_numeric.empty:
+                    import matplotlib.pyplot as plt
+                    fig, ax = plt.subplots(figsize=(12, 6))
+                    bars = ax.bar(range(len(counselor_sales_numeric)), counselor_sales_numeric.values, color='#1f77b4')
+                    ax.set_xticks(range(len(counselor_sales_numeric)))
+                    ax.set_xticklabels(counselor_sales_numeric.index, rotation=45, ha='right')
+                    # 값을 상단에 표시
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height,
+                               f'{int(height):,}원',
+                               ha='center', va='bottom', fontsize=10, fontweight='bold')
+                    ax.set_ylabel('금액 (원)')
+                    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x/1000000)}M' if x >= 1000000 else f'{int(x/1000)}K'))
+                    plt.tight_layout()
+                    st.pyplot(fig)
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
