@@ -379,7 +379,7 @@ with tab5:
             
             st.divider()
             
-            if selected_counselor_tab6 == "전체":
+            if selected_counselor_tab5 == "전체":
                 st.subheader("👥 상담자별 매출 및 성과")
                 
                 counselor_stats_list = []
