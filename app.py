@@ -572,10 +572,6 @@ with tab_stats:
                 
                 counselor_sales_df = get_counselor_stats(df_stats, COUNSELORS)
                 st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
-                
-                counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
-                counselor_sales_numeric = counselor_sales_numeric.reindex(COUNSELORS, fill_value=0)
-                st.bar_chart(counselor_sales_numeric)
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
