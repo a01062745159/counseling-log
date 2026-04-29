@@ -643,10 +643,7 @@ Unconfirmed Amount: {unconfirmed_amount:,} KRW
                             
                             zf.writestr('2_성과.png', img_bytes.getvalue())
                         
-                        # 3. 상담 내용 PNG
-                        fig, ax = plt.subplots(figsize=(12, 10), dpi=100)
-                        ax.axis('off')
-                        
+                        # 3. 상담 내용 PNG (모든 건수)
                         content_text = f"""Consultation Report
 Date: {report_start_date} ~ {report_end_date}
 Counselor: {report_counselor if report_counselor != '전체' else 'All'}
@@ -654,15 +651,19 @@ Total: {len(df_report_sorted)} cases
 
 """
                         
-                        for idx, row in df_report_sorted.head(15).iterrows():
+                        for idx, row in df_report_sorted.iterrows():
                             content_text += f"\n[{row['날짜']}] {row['환자성함']}\n"
                             content_text += f"Counselor: {row['상담자']}, Doctor: {row['진단원장']}\n"
                             content_text += f"Type: {row['분류']}, Result: {row['상담결과']}, Amount: {int(float(row['금액'])):,} KRW\n"
                             content_text += f"Point: {row['주요포인트']}\n"
                             content_text += "─" * 60 + "\n"
                         
-                        if len(df_report_sorted) > 15:
-                            content_text += f"\n... and {len(df_report_sorted) - 15} more cases"
+                        # 동적 높이 조정 (건수에 따라)
+                        num_cases = len(df_report_sorted)
+                        fig_height = max(10, 6 + (num_cases * 0.4))
+                        
+                        fig, ax = plt.subplots(figsize=(12, fig_height), dpi=100)
+                        ax.axis('off')
                         
                         ax.text(0.05, 0.98, content_text, ha='left', va='top', 
                                fontsize=9, family='monospace',
