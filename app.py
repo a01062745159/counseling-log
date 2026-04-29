@@ -179,6 +179,10 @@ with tab1:
 with tab2:
     st.header("📄 상담 보고")
     
+    # 데이터 새로 읽기 (최신 데이터 가져오기)
+    df_tab2_source = conn.read(ttl="0s")
+    df_tab2_source = df_tab2_source.dropna(subset=["환자성함"]).copy()
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         selected_counselor_tab2 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab2_counselor")
@@ -188,8 +192,8 @@ with tab2:
     with col3:
         end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
     
-    if not df.empty:
-        df_tab2 = df.copy()
+    if not df_tab2_source.empty:
+        df_tab2 = df_tab2_source.copy()
         
         start_str = start_date_tab2.strftime("%Y-%m-%d")
         end_str = end_date_tab2.strftime("%Y-%m-%d")
