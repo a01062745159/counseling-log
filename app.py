@@ -549,7 +549,29 @@ with tab_stats:
                     '미확정매출': '🔴 미확정매출'
                 })
                 
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                # 텍스트 색상 적용
+                def highlight_columns(val, col_name):
+                    if '🔵' in col_name:
+                        return 'color: blue; font-weight: bold;'
+                    elif '🔴' in col_name:
+                        return 'color: red; font-weight: bold;'
+                    return ''
+                
+                styled_df = display_df.style.applymap(
+                    lambda val: highlight_columns(val, display_df.columns[display_df.columns.get_loc(display_df.columns[0])]),
+                    subset=['🔵 확정매출']
+                ).applymap(
+                    lambda val: highlight_columns(val, display_df.columns[display_df.columns.get_loc(display_df.columns[0])]),
+                    subset=['🔴 미확정매출']
+                )
+                
+                # 더 간단한 방법: 직접 색상 지정
+                def style_row(row):
+                    return ['color: blue; font-weight: bold;' if '🔵' in col else 'color: red; font-weight: bold;' if '🔴' in col else '' for col in display_df.columns]
+                
+                styled_df = display_df.style.apply(lambda row: ['color: blue; font-weight: bold;' if col == '🔵 확정매출' else 'color: red; font-weight: bold;' if col == '🔴 미확정매출' else '' for col in display_df.columns], axis=1, subset=['🔵 확정매출', '🔴 미확정매출'])
+                
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
                 st.caption("🔵 파란색: 확정된 상담의 매출 | 🔴 빨간색: 미확정된 상담의 매출")
                 
                 counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
@@ -620,7 +642,10 @@ with tab_download:
                         '미확정매출': '🔴 미확정매출'
                     })
                     
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    # 텍스트 색상 적용
+                    styled_df = display_df.style.apply(lambda row: ['color: blue; font-weight: bold;' if col == '🔵 확정매출' else 'color: red; font-weight: bold;' if col == '🔴 미확정매출' else '' for col in display_df.columns], axis=1, subset=['🔵 확정매출', '🔴 미확정매출'])
+                    
+                    st.dataframe(styled_df, use_container_width=True, hide_index=True)
                     st.caption("🔵 파란색: 확정된 상담의 매출 | 🔴 빨간색: 미확정된 상담의 매출")
                 else:
                     st.info("전체 상담자를 선택해야 상담자별 성과를 볼 수 있습니다.")
