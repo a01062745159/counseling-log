@@ -518,6 +518,30 @@ with tab_stats:
             
             st.divider()
             
+            # 분류별 확정/미확정 현황
+            st.subheader("📋 분류별 상담 현황 (확정/미확정)")
+            
+            category_order = ['예약 신환', '미예약 신환', '예약 구환', '미예약 구환']
+            
+            # 분류별 확정/미확정 교차표
+            category_result_data = []
+            for category in category_order:
+                category_df = df_stats[df_stats['분류'] == category]
+                confirmed = len(category_df[category_df['상담결과'] == '확정'])
+                unconfirmed = len(category_df[category_df['상담결과'] == '미확정'])
+                
+                category_result_data.append({
+                    '분류': category,
+                    '확정': confirmed,
+                    '미확정': unconfirmed,
+                    '합계': confirmed + unconfirmed
+                })
+            
+            category_result_df = pd.DataFrame(category_result_data)
+            st.dataframe(category_result_df, use_container_width=True, hide_index=True)
+            
+            st.divider()
+            
             if selected_counselor_tab5 == "전체":
                 st.subheader("👥 상담자별 매출 및 성과")
                 
