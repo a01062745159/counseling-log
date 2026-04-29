@@ -523,14 +523,17 @@ with tab_stats:
                 st.subheader("결과별 건수")
                 result_order = ['확정', '미확정']
                 result_data = df_stats['상담결과'].value_counts()
-                result_dict = {r: [int(result_data.get(r, 0))] for r in result_order}
-                result_df = pd.DataFrame(result_dict)
-                st.bar_chart(result_df)
+                # 순서만 정렬한 Series
+                result_sorted = pd.Series(
+                    [int(result_data.get(r, 0)) for r in result_order],
+                    index=result_order
+                )
+                st.bar_chart(result_sorted)
                 
                 # 표로 숫자 표시
                 result_display = pd.DataFrame({
                     '상담결과': result_order,
-                    '건수': [int(result_data.get(r, 0)) for r in result_order]
+                    '건수': result_sorted.values
                 })
                 st.dataframe(result_display, use_container_width=True, hide_index=True)
             
@@ -538,14 +541,17 @@ with tab_stats:
                 st.subheader("분류별 건수")
                 category_order = ['예약 신환', '미예약 신환', '예약 구환', '미예약 구환']
                 category_data = df_stats['분류'].value_counts()
-                category_dict = {c: [int(category_data.get(c, 0))] for c in category_order}
-                category_df = pd.DataFrame(category_dict)
-                st.bar_chart(category_df)
+                # 순서만 정렬한 Series
+                category_sorted = pd.Series(
+                    [int(category_data.get(c, 0)) for c in category_order],
+                    index=category_order
+                )
+                st.bar_chart(category_sorted)
                 
                 # 표로 숫자 표시
                 category_display = pd.DataFrame({
                     '분류': category_order,
-                    '건수': [int(category_data.get(c, 0)) for c in category_order]
+                    '건수': category_sorted.values
                 })
                 st.dataframe(category_display, use_container_width=True, hide_index=True)
             
