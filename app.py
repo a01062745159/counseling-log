@@ -541,16 +541,7 @@ with tab_stats:
                 st.subheader("👥 상담자별 매출 및 성과")
                 
                 counselor_sales_df = get_counselor_stats(df_stats, COUNSELORS)
-                
-                # 컬럼명에 색상 이모지 추가
-                display_df = counselor_sales_df.copy()
-                display_df.columns = [
-                    col.replace('확정매출', '🔵 확정매출').replace('미확정매출', '🔴 미확정매출')
-                    for col in display_df.columns
-                ]
-                
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
-                st.caption("🔵 파란색: 확정된 상담의 매출 | 🔴 빨간색: 미확정된 상담의 매출")
+                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
                 
                 counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
                 counselor_sales_numeric = counselor_sales_numeric.reindex(COUNSELORS, fill_value=0)
@@ -612,16 +603,7 @@ with tab_download:
                 
                 if report_counselor == "전체":
                     counselor_sales_df = get_counselor_stats(df_report, COUNSELORS)
-                    
-                    # 컬럼명에 색상 이모지 추가
-                    display_df = counselor_sales_df.copy()
-                    display_df.columns = [
-                        col.replace('확정매출', '🔵 확정매출').replace('미확정매출', '🔴 미확정매출')
-                        for col in display_df.columns
-                    ]
-                    
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
-                    st.caption("🔵 파란색: 확정된 상담의 매출 | 🔴 빨간색: 미확정된 상담의 매출")
+                    st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
                 else:
                     st.info("전체 상담자를 선택해야 상담자별 성과를 볼 수 있습니다.")
                 
