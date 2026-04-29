@@ -69,10 +69,9 @@ try:
 except:
     df = pd.DataFrame(columns=EXPECTED_COLS)
 
-# ===== 7개 탭 생성 (정렬된 순서) =====
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+# ===== 6개 탭 생성 (정렬된 순서) =====
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📝 상담일지 작성", 
-    "📋 상담 기록", 
     "📄 상담 보고", 
     "👤 상담 내용 조회", 
     "📞 미확정 리마인더", 
@@ -130,11 +129,11 @@ with tab1:
             st.success("✅ 저장되었습니다!")
             st.rerun()
 
-# ===== TAB 2: 상담 기록 (정밀 조회) =====
+# ===== TAB 2: 상담 보고 (보고용) =====
 with tab2:
-    st.header("📋 상담 기록")
+    st.header("📄 상담 보고")
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         selected_counselor_tab2 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab2_counselor")
     with col2:
@@ -142,12 +141,9 @@ with tab2:
         start_date_tab2 = st.date_input("시작일", today, key="tab2_start")
     with col3:
         end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
-    with col4:
-        search_name_tab2 = st.text_input("🔍 환자 이름 검색", placeholder="예: 송호선", key="tab2_search")
     
     if not df.empty:
         df_tab2 = df.copy()
-        df_tab2['금액_숫자'] = pd.to_numeric(df_tab2['금액'], errors='coerce').fillna(0)
         
         start_str = start_date_tab2.strftime("%Y-%m-%d")
         end_str = end_date_tab2.strftime("%Y-%m-%d")
@@ -156,65 +152,22 @@ with tab2:
         if selected_counselor_tab2 != "전체":
             df_tab2 = df_tab2[df_tab2['상담자'] == selected_counselor_tab2]
         
-        if search_name_tab2:
-            df_tab2 = df_tab2[df_tab2['환자성함'].str.contains(search_name_tab2, case=False, na=False)]
-        
-        if '금액_숫자' in df_tab2.columns:
-            df_tab2 = df_tab2.drop(columns=['금액_숫자'])
+        # 상담 건수 표시
+        st.metric("📌 상담 건수", f"{len(df_tab2)}건")
+        st.divider()
         
         df_tab2 = df_tab2.iloc[::-1]
         
-        if not df_tab2.empty:
-            st.success(f"✅ {len(df_tab2)}건의 상담 기록")
-            st.dataframe(
-                df_tab2, 
-                use_container_width=True, 
-                hide_index=True,
-                column_config={
-                    "금액": st.column_config.NumberColumn(format="%,d원", alignment="right"),
-                    "상담내용": st.column_config.Column(width="medium")
-                }
-            )
-        else:
-            st.warning("❌ 검색 조건에 맞는 상담 기록이 없습니다.")
-    else:
-        st.info("조회할 데이터가 없습니다")
-
-# ===== TAB 3: 상담 보고 (보고용) =====
-with tab3:
-    st.header("📄 상담 보고")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        selected_counselor_tab3 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab3_counselor")
-    with col2:
-        today = datetime.now().date()
-        start_date_tab3 = st.date_input("시작일", today, key="tab3_start")
-    with col3:
-        end_date_tab3 = st.date_input("종료일", today, key="tab3_end")
-    
-    if not df.empty:
-        df_tab3 = df.copy()
-        
-        start_str = start_date_tab3.strftime("%Y-%m-%d")
-        end_str = end_date_tab3.strftime("%Y-%m-%d")
-        df_tab3 = df_tab3[(df_tab3['날짜'] >= start_str) & (df_tab3['날짜'] <= end_str)]
-        
-        if selected_counselor_tab3 != "전체":
-            df_tab3 = df_tab3[df_tab3['상담자'] == selected_counselor_tab3]
-        
-        df_tab3 = df_tab3.iloc[::-1]
-        
         st.subheader("📝 상담내용 상세")
-        for idx, row in df_tab3.iterrows():
+        for idx, row in df_tab2.iterrows():
             with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {int(float(row['차트번호'])) if pd.notnull(row['차트번호']) and str(row['차트번호']).strip() != '' else ''}) - {row['상담자']}", expanded=True):
                 st.markdown(f"**주요포인트:** {row['주요포인트']}")
                 st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
     else:
         st.info("조회할 데이터가 없습니다")
 
-# ===== TAB 4: 상담 내용 조회 (환자 검색) =====
-with tab4:
+# ===== TAB 3: 상담 내용 조회 (환자 검색) =====
+with tab3:
     st.header("👤 상담 내용 조회")
     
     st.write("환자 이름 또는 차트번호로 검색하세요. (부분 검색 가능)")
@@ -249,8 +202,8 @@ with tab4:
     else:
         st.info("데이터가 없습니다")
 
-# ===== TAB 5: 미확정 상담 리마인더 =====
-with tab5:
+# ===== TAB 4: 미확정 상담 리마인더 =====
+with tab4:
     st.header("📞 미확정 상담 리마인더")
     
     col1, col2 = st.columns(2)
@@ -352,29 +305,29 @@ with tab5:
     else:
         st.info("데이터가 없습니다.")
 
-# ===== TAB 6: 상담 일지 통계 =====
-with tab6:
+# ===== TAB 5: 상담 일지 통계 =====
+with tab5:
     st.header("📊 상담 일지 통계")
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        selected_counselor_tab6 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab6_stat_counselor")
+        selected_counselor_tab5 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab5_stat_counselor")
     with col2:
         today = datetime.now().date()
-        start_date_tab6 = st.date_input("시작일", today, key="tab6_start")
+        start_date_tab5 = st.date_input("시작일", today, key="tab5_start")
     with col3:
-        end_date_tab6 = st.date_input("종료일", today, key="tab6_end")
+        end_date_tab5 = st.date_input("종료일", today, key="tab5_end")
     
     if not df.empty:
         df_stats = df.copy()
         df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
         
-        start_str = start_date_tab6.strftime("%Y-%m-%d")
-        end_str = end_date_tab6.strftime("%Y-%m-%d")
+        start_str = start_date_tab5.strftime("%Y-%m-%d")
+        end_str = end_date_tab5.strftime("%Y-%m-%d")
         df_stats = df_stats[(df_stats['날짜'] >= start_str) & (df_stats['날짜'] <= end_str)]
         
-        if selected_counselor_tab6 != "전체":
-            df_stats = df_stats[df_stats['상담자'] == selected_counselor_tab6]
+        if selected_counselor_tab5 != "전체":
+            df_stats = df_stats[df_stats['상담자'] == selected_counselor_tab5]
         
         if not df_stats.empty:
             total_count = len(df_stats)
@@ -461,8 +414,8 @@ with tab6:
     else:
         st.info("데이터가 없습니다")
 
-# ===== TAB 7: 자료 다운로드 =====
-with tab7:
+# ===== TAB 6: 자료 다운로드 =====
+with tab6:
     st.header("📥 자료 다운로드")
     
     # 비밀번호 입력
