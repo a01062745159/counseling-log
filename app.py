@@ -313,7 +313,11 @@ with tab_report:
                     st.write(f"**금액:** {format_amount(row['금액']):,}원")
                 with col2:
                     st.write(f"**진단원장:** {row['진단원장']}")
-                    st.write(f"**상담결과:** {row['상담결과']}")
+                    # 상담결과 색상 구분
+                    if row['상담결과'] == '확정':
+                        st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
                 with col3:
                     st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
                 
@@ -606,7 +610,11 @@ with tab_download:
                         with col1:
                             st.write(f"**진단 원장:** {row['진단원장']}")
                             st.write(f"**분류:** {row['분류']}")
-                            st.write(f"**상담결과:** {row['상담결과']}")
+                            # 상담결과 색상 구분
+                            if row['상담결과'] == '확정':
+                                st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
                         with col2:
                             st.write(f"**금액:** {format_amount(row['금액']):,}원")
                             st.write(f"**상담자:** {row['상담자']}")
