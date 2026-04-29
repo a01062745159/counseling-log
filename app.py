@@ -121,11 +121,20 @@ def get_counselor_stats(df, counselors):
             '확정건수': confirmed,
             '미확정건수': unconfirmed,
             '동의율': f"{agreement_rate:.1f}%",
+            '확정매출_숫자': confirmed_amount,  # 정렬용 숫자
             '확정매출': f"{confirmed_amount:,}원",
             '미확정매출': f"{unconfirmed_amount:,}원"
         })
     
-    return pd.DataFrame(counselor_stats_list)
+    result_df = pd.DataFrame(counselor_stats_list)
+    
+    # 확정매출 기준 내림차순 정렬
+    result_df = result_df.sort_values('확정매출_숫자', ascending=False)
+    
+    # 정렬용 컬럼 제거
+    result_df = result_df.drop('확정매출_숫자', axis=1)
+    
+    return result_df.reset_index(drop=True)
 
 # ===== 🔒 로그인 기능 =====
 if "logged_in" not in st.session_state:
@@ -532,7 +541,16 @@ with tab_stats:
                 st.subheader("👥 상담자별 매출 및 성과")
                 
                 counselor_sales_df = get_counselor_stats(df_stats, COUNSELORS)
-                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
+                
+                # 컬럼명에 색상 이모지 추가
+                display_df = counselor_sales_df.copy()
+                display_df = display_df.rename(columns={
+                    '확정매출': '🔵 확정매출',
+                    '미확정매출': '🔴 미확정매출'
+                })
+                
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                st.caption("🔵 파란색: 확정된 상담의 매출 | 🔴 빨간색: 미확정된 상담의 매출")
                 
                 counselor_sales_numeric = df_stats.groupby('상담자')['금액_숫자'].sum()
                 counselor_sales_numeric = counselor_sales_numeric.reindex(COUNSELORS, fill_value=0)
@@ -594,7 +612,16 @@ with tab_download:
                 
                 if report_counselor == "전체":
                     counselor_sales_df = get_counselor_stats(df_report, COUNSELORS)
-                    st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
+                    
+                    # 컬럼명에 색상 이모지 추가
+                    display_df = counselor_sales_df.copy()
+                    display_df = display_df.rename(columns={
+                        '확정매출': '🔵 확정매출',
+                        '미확정매출': '🔴 미확정매출'
+                    })
+                    
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    st.caption("🔵 파란색: 확정된 상담의 매출 | 🔴 빨간색: 미확정된 상담의 매출")
                 else:
                     st.info("전체 상담자를 선택해야 상담자별 성과를 볼 수 있습니다.")
                 
