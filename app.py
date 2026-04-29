@@ -200,11 +200,11 @@ with tab_write:
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        consultant = st.selectbox("👤 담당 상담자", COUNSELORS, key="tab1_counselor")
+        consultant = st.selectbox("👤 담당 상담자", [None] + COUNSELORS, format_func=lambda x: "선택하세요" if x is None else x, key="tab1_counselor")
     with col2:
-        doctor = st.selectbox("👨‍⚕️ 진단 원장님", DOCTORS, key="tab1_doctor")
+        doctor = st.selectbox("👨‍⚕️ 진단 원장님", [None] + DOCTORS, format_func=lambda x: "선택하세요" if x is None else x, key="tab1_doctor")
     with col3:
-        result = st.selectbox("📢 결과", ["미확정", "확정"], key="tab1_result")
+        result = st.selectbox("📢 결과", [None, "미확정", "확정"], format_func=lambda x: "선택하세요" if x is None else x, key="tab1_result")
     
     col3, col4, col5 = st.columns(3)
     with col3:
@@ -219,7 +219,18 @@ with tab_write:
     content = st.text_area("💬 상세 상담 내용", height=150, key="tab1_content")
 
     if st.button("💾 저장하기", use_container_width=True):
-        if name and content:
+        # 필수 필드 검증
+        if not name:
+            st.error("❌ 환자 성함을 입력해주세요!")
+        elif not content:
+            st.error("❌ 상담 내용을 입력해주세요!")
+        elif consultant is None:
+            st.error("❌ 상담자를 선택해주세요!")
+        elif doctor is None:
+            st.error("❌ 진단 원장을 선택해주세요!")
+        elif result is None:
+            st.error("❌ 상담 결과를 선택해주세요!")
+        else:
             new_entry = pd.DataFrame([{
                 "날짜": input_date.strftime("%Y-%m-%d"),
                 "상담자": consultant,
@@ -281,8 +292,6 @@ with tab_write:
             
             st.divider()
             st.info("✏️ 페이지를 새로고침하면 입력칸이 초기화됩니다")
-        else:
-            st.warning("⚠️ 환자명과 상담내용은 필수입니다.")
 
 # ===== TAB 2: 상담 보고 (보고용) =====
 with tab_report:
