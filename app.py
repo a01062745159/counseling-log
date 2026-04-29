@@ -126,7 +126,49 @@ with tab1:
             }])
             updated_df = pd.concat([df, new_entry], ignore_index=True)
             conn.update(data=updated_df[EXPECTED_COLS])
-            st.success("✅ 저장되었습니다!")
+            st.success("✅ 저장되었습니다!", icon="✅")
+            st.balloons()  # 풍선 효과
+            
+            # 저장된 데이터 표시
+            st.subheader("📝 방금 저장된 내용")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**환자명:** {name}")
+                st.write(f"**상담자:** {consultant}")
+                st.write(f"**진단원장:** {doctor}")
+                st.write(f"**분류:** {category}")
+            with col2:
+                st.write(f"**날짜:** {input_date}")
+                st.write(f"**결과:** {result}")
+                st.write(f"**금액:** {amount:,}원")
+                st.write(f"**차트번호:** {chart_no}")
+            
+            st.write(f"**주요포인트:** {points}")
+            st.write(f"**상담내용:** {content}")
+            
+            st.divider()
+            
+            # 오늘의 입력 내역
+            st.subheader("📋 오늘의 입력 내역")
+            today = datetime.now().date().strftime("%Y-%m-%d")
+            today_data = updated_df[updated_df['날짜'] == today].copy()
+            
+            if not today_data.empty:
+                today_data = today_data.iloc[::-1]
+                st.write(f"총 **{len(today_data)}건** 입력됨")
+                
+                for idx, row in today_data.iterrows():
+                    with st.expander(f"📌 {row['환자성함']} - {row['상담자']} ({row['상담결과']})"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"**진단원장:** {row['진단원장']}")
+                            st.write(f"**분류:** {row['분류']}")
+                            st.write(f"**금액:** {int(float(row['금액'])):,}원")
+                        with col2:
+                            st.write(f"**차트번호:** {row['차트번호']}")
+                            st.write(f"**주요포인트:** {row['주요포인트']}")
+                        st.write(f"**상담내용:** {row['상담내용']}")
+            
             st.rerun()
 
 # ===== TAB 2: 상담 보고 (보고용) =====
