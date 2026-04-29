@@ -725,11 +725,11 @@ Unconfirmed Amount: ₩ {unconfirmed_amount:,}
                         ax.axis('off')
                         
                         perf_text = "Counselor Performance\n\n"
-                        perf_text += "Name | Sales | Count | Avg | OK | X | Rate\n"
-                        perf_text += "="*80 + "\n"
+                        perf_text += "Name | Count | OK | X | Rate | Confirmed Sales | Unconfirmed Sales\n"
+                        perf_text += "="*100 + "\n"
                         
                         for _, row in counselor_sales_df.iterrows():
-                            perf_text += f"{row['상담자']} | {row['총매출']} | {row['상담건수']} | {row['평균금액']} | {row['확정건수']} | {row['미확정건수']} | {row['동의율']}\n"
+                            perf_text += f"{row['상담자']} | {row['상담건수']} | {row['확정건수']} | {row['미확정건수']} | {row['동의율']} | {row['확정매출']} | {row['미확정매출']}\n"
                         
                         ax.text(0.05, 0.95, perf_text, ha='left', va='top', 
                                fontsize=9, family='monospace',
