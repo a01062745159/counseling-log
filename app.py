@@ -572,28 +572,27 @@ with tab6:
                 
                 st.divider()
                 
-                # PNG 이미지 다운로드 (ZIP 파일로 통합)
+                # PNG 이미지 다운로드 (ZIP 파일로 통합) - 먼저 표시
                 st.subheader("📸 이미지 다운로드 (카톡 공유용)")
                 
-                if st.button("📥 모든 이미지 다운로드 (ZIP)", use_container_width=True, key="btn_all_png"):
-                    import matplotlib.pyplot as plt
-                    import matplotlib
-                    from io import BytesIO
-                    import zipfile
+                import matplotlib.pyplot as plt
+                import matplotlib
+                from io import BytesIO
+                import zipfile
+                
+                # 한글 폰트 설정
+                matplotlib.rcParams['font.family'] = 'DejaVu Sans'
+                matplotlib.rcParams['axes.unicode_minus'] = False
+                
+                # ZIP 파일 생성
+                zip_buffer = BytesIO()
+                
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    # 1. 통계 정보 PNG
+                    fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+                    ax.axis('off')
                     
-                    # 한글 폰트 설정
-                    matplotlib.rcParams['font.family'] = 'DejaVu Sans'
-                    matplotlib.rcParams['axes.unicode_minus'] = False
-                    
-                    # ZIP 파일 생성
-                    zip_buffer = BytesIO()
-                    
-                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-                        # 1. 통계 정보 PNG
-                        fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
-                        ax.axis('off')
-                        
-                        stats_text = f"""Sureuhan Clinic Consultation Statistics
+                    stats_text = f"""Sureuhan Clinic Consultation Statistics
 Date: {report_start_date} ~ {report_end_date}
 Counselor: {report_counselor if report_counselor != '전체' else 'All'}
 
@@ -608,83 +607,85 @@ Confirmed Amount: {confirmed_amount:,} KRW
 Unconfirmed: {unconfirmed_count}
 Unconfirmed Amount: {unconfirmed_amount:,} KRW
 ━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+                    
+                    ax.text(0.5, 0.5, stats_text, ha='center', va='center', 
+                           fontsize=12, family='monospace',
+                           bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
+                    
+                    img_bytes = BytesIO()
+                    plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
+                    img_bytes.seek(0)
+                    plt.close()
+                    
+                    zf.writestr('1_통계.png', img_bytes.getvalue())
+                    
+                    # 2. 상담자별 성과 PNG
+                    if report_counselor == "전체":
+                        fig, ax = plt.subplots(figsize=(11, 7), dpi=100)
+                        ax.axis('off')
                         
-                        ax.text(0.5, 0.5, stats_text, ha='center', va='center', 
-                               fontsize=12, family='monospace',
-                               bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
+                        perf_text = "Counselor Performance\n\n"
+                        perf_text += "Name | Total Sales | Count | Avg | Confirmed | Unconfirm | Rate\n"
+                        perf_text += "━" * 75 + "\n"
+                        
+                        for _, row in counselor_sales_df.iterrows():
+                            perf_text += f"{row['상담자']} | {row['총매출']} | {row['상담건수']} | {row['평균금액']} | {row['확정건수']} | {row['미확정건수']} | {row['동의율']}\n"
+                        
+                        ax.text(0.05, 0.95, perf_text, ha='left', va='top', 
+                               fontsize=10, family='monospace',
+                               bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.2))
                         
                         img_bytes = BytesIO()
                         plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
                         img_bytes.seek(0)
                         plt.close()
                         
-                        zf.writestr('1_통계.png', img_bytes.getvalue())
-                        
-                        # 2. 상담자별 성과 PNG
-                        if report_counselor == "전체":
-                            fig, ax = plt.subplots(figsize=(11, 7), dpi=100)
-                            ax.axis('off')
-                            
-                            perf_text = "Counselor Performance\n\n"
-                            perf_text += "Name | Total Sales | Count | Avg | Confirmed | Unconfirm | Rate\n"
-                            perf_text += "━" * 75 + "\n"
-                            
-                            for _, row in counselor_sales_df.iterrows():
-                                perf_text += f"{row['상담자']} | {row['총매출']} | {row['상담건수']} | {row['평균금액']} | {row['확정건수']} | {row['미확정건수']} | {row['동의율']}\n"
-                            
-                            ax.text(0.05, 0.95, perf_text, ha='left', va='top', 
-                                   fontsize=10, family='monospace',
-                                   bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.2))
-                            
-                            img_bytes = BytesIO()
-                            plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
-                            img_bytes.seek(0)
-                            plt.close()
-                            
-                            zf.writestr('2_성과.png', img_bytes.getvalue())
-                        
-                        # 3. 상담 내용 PNG (모든 건수)
-                        content_text = f"""Consultation Report
+                        zf.writestr('2_성과.png', img_bytes.getvalue())
+                    
+                    # 3. 상담 내용 PNG (모든 건수)
+                    content_text = f"""Consultation Report
 Date: {report_start_date} ~ {report_end_date}
 Counselor: {report_counselor if report_counselor != '전체' else 'All'}
 Total: {len(df_report_sorted)} cases
 
 """
-                        
-                        for idx, row in df_report_sorted.iterrows():
-                            content_text += f"\n[{row['날짜']}] {row['환자성함']}\n"
-                            content_text += f"Counselor: {row['상담자']}, Doctor: {row['진단원장']}\n"
-                            content_text += f"Type: {row['분류']}, Result: {row['상담결과']}, Amount: {int(float(row['금액'])):,} KRW\n"
-                            content_text += f"Point: {row['주요포인트']}\n"
-                            content_text += "─" * 60 + "\n"
-                        
-                        # 동적 높이 조정 (건수에 따라)
-                        num_cases = len(df_report_sorted)
-                        fig_height = max(10, 6 + (num_cases * 0.4))
-                        
-                        fig, ax = plt.subplots(figsize=(12, fig_height), dpi=100)
-                        ax.axis('off')
-                        
-                        ax.text(0.05, 0.98, content_text, ha='left', va='top', 
-                               fontsize=9, family='monospace',
-                               bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.2))
-                        
-                        img_bytes = BytesIO()
-                        plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
-                        img_bytes.seek(0)
-                        plt.close()
-                        
-                        zf.writestr('3_상담내용.png', img_bytes.getvalue())
                     
-                    zip_buffer.seek(0)
+                    for idx, row in df_report_sorted.iterrows():
+                        content_text += f"\n[{row['날짜']}] {row['환자성함']}\n"
+                        content_text += f"Counselor: {row['상담자']}, Doctor: {row['진단원장']}\n"
+                        content_text += f"Type: {row['분류']}, Result: {row['상담결과']}, Amount: {int(float(row['금액'])):,} KRW\n"
+                        content_text += f"Point: {row['주요포인트']}\n"
+                        content_text += "─" * 60 + "\n"
                     
-                    st.download_button(
-                        label="📥 ZIP 파일 다운로드 (모든 이미지)",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"수려한치과_이미지_{report_start_date.strftime('%Y%m%d')}.zip",
-                        mime="application/zip",
-                        use_container_width=True
-                    )
+                    # 동적 높이 조정 (건수에 따라)
+                    num_cases = len(df_report_sorted)
+                    fig_height = max(10, 6 + (num_cases * 0.4))
+                    
+                    fig, ax = plt.subplots(figsize=(12, fig_height), dpi=100)
+                    ax.axis('off')
+                    
+                    ax.text(0.05, 0.98, content_text, ha='left', va='top', 
+                           fontsize=9, family='monospace',
+                           bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.2))
+                    
+                    img_bytes = BytesIO()
+                    plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
+                    img_bytes.seek(0)
+                    plt.close()
+                    
+                    zf.writestr('3_상담내용.png', img_bytes.getvalue())
+                
+                zip_buffer.seek(0)
+                
+                st.download_button(
+                    label="📥 모든 이미지 다운로드 (ZIP)",
+                    data=zip_buffer.getvalue(),
+                    file_name=f"수려한치과_이미지_{report_start_date.strftime('%Y%m%d')}.zip",
+                    mime="application/zip",
+                    use_container_width=True
+                )
+                
+                st.divider()
             else:
                 st.info("해당 기간에 상담 기록이 없습니다")
         else:
