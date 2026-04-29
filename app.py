@@ -299,6 +299,16 @@ with tab2:
         st.subheader("📝 상담내용 상세")
         for idx, row in df_tab2.iterrows():
             with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write(f"**분류:** {row['분류']}")
+                    st.write(f"**금액:** {format_amount(row['금액']):,}원")
+                with col2:
+                    st.write(f"**진단원장:** {row['진단원장']}")
+                    st.write(f"**상담결과:** {row['상담결과']}")
+                with col3:
+                    st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
+                
                 st.markdown(f"**주요포인트:** {row['주요포인트']}")
                 st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
     else:
@@ -649,9 +659,9 @@ with tab6:
                 from io import BytesIO
                 import zipfile
                 
-                # 한글 폰트 설정
-                matplotlib.rcParams['font.family'] = 'DejaVu Sans'
-                matplotlib.rcParams['axes.unicode_minus'] = False
+                # matplotlib 한글 폰트 설정
+                plt.rcParams['font.family'] = 'DejaVu Sans'
+                plt.rcParams['axes.unicode_minus'] = False
                 
                 # ZIP 파일 생성
                 zip_buffer = BytesIO()
@@ -661,8 +671,8 @@ with tab6:
                     fig, ax = plt.subplots(figsize=(12, 8), dpi=100)
                     ax.axis('off')
                     
-                    stats_text = f"""Sureuhan Clinic - Consultation Statistics
-Period: {report_start_date} ~ {report_end_date}
+                    stats_text = f"""Consultation Statistics
+{report_start_date} ~ {report_end_date}
 Counselor: {report_counselor if report_counselor != '전체' else 'All'}
 
 {'='*60}
@@ -680,7 +690,7 @@ Unconfirmed Amount: ₩ {unconfirmed_amount:,}
 {'='*60}"""
                     
                     ax.text(0.5, 0.5, stats_text, ha='center', va='center', 
-                           fontsize=12, family='monospace',
+                           fontsize=11, family='monospace',
                            bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
                     
                     img_bytes = BytesIO()
@@ -696,14 +706,14 @@ Unconfirmed Amount: ₩ {unconfirmed_amount:,}
                         ax.axis('off')
                         
                         perf_text = "Counselor Performance\n\n"
-                        perf_text += "Name | Total Sales | Count | Avg | Confirmed | Unconfirmed | Rate\n"
+                        perf_text += "Name | Sales | Count | Avg | OK | X | Rate\n"
                         perf_text += "="*80 + "\n"
                         
                         for _, row in counselor_sales_df.iterrows():
                             perf_text += f"{row['상담자']} | {row['총매출']} | {row['상담건수']} | {row['평균금액']} | {row['확정건수']} | {row['미확정건수']} | {row['동의율']}\n"
                         
                         ax.text(0.05, 0.95, perf_text, ha='left', va='top', 
-                               fontsize=10, family='monospace',
+                               fontsize=9, family='monospace',
                                bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.2))
                         
                         img_bytes = BytesIO()
@@ -715,27 +725,27 @@ Unconfirmed Amount: ₩ {unconfirmed_amount:,}
                     
                     # 3. 상담 내용 이미지
                     num_cases = len(df_report_sorted)
-                    fig_height = max(10, 6 + (num_cases * 0.5))
+                    fig_height = max(10, 5 + (num_cases * 0.6))
                     
                     fig, ax = plt.subplots(figsize=(14, fig_height), dpi=100)
                     ax.axis('off')
                     
-                    content_text = f"""Consultation Report
-Period: {report_start_date} ~ {report_end_date}
+                    content_text = f"""Consultation Details
+{report_start_date} ~ {report_end_date}
 Counselor: {report_counselor if report_counselor != '전체' else 'All'}
-Total Cases: {num_cases}
+Total: {num_cases} cases
 
 """
                     
                     for _, row in df_report_sorted.iterrows():
-                        content_text += f"\n[{row['날짜']}] Patient: {row['환자성함']}\n"
-                        content_text += f"Counselor: {row['상담자']}, Doctor: {row['진단원장']}\n"
-                        content_text += f"Type: {row['분류']}, Result: {row['상담결과']}, Amount: ₩ {format_amount(row['금액']):,}\n"
-                        content_text += f"Key Point: {row['주요포인트']}\n"
+                        content_text += f"\n[{row['날짜']}] {row['환자성함']}\n"
+                        content_text += f"Counselor: {row['상담자']} | Doctor: {row['진단원장']}\n"
+                        content_text += f"Type: {row['분류']} | Result: {row['상담결과']} | Amount: {format_amount(row['금액']):,}\n"
+                        content_text += f"Point: {row['주요포인트']}\n"
                         content_text += "-"*70 + "\n"
                     
                     ax.text(0.05, 0.98, content_text, ha='left', va='top', 
-                           fontsize=9, family='monospace',
+                           fontsize=8, family='monospace',
                            bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.2))
                     
                     img_bytes = BytesIO()
