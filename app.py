@@ -359,6 +359,14 @@ with tab4:
 with tab5:
     st.header("📊 상담 일지 통계")
     
+    # 데이터 새로고침
+    df_tab5 = conn.read(ttl="0s")
+    df_tab5 = df_tab5.dropna(subset=["환자성함"]).copy()
+    if '진단원장' not in df_tab5.columns:
+        df_tab5['진단원장'] = ''
+    if '리콜상태' not in df_tab5.columns:
+        df_tab5['리콜상태'] = '미리콜'
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         selected_counselor_tab5 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab5_stat_counselor")
@@ -368,8 +376,8 @@ with tab5:
     with col3:
         end_date_tab5 = st.date_input("종료일", today, key="tab5_end")
     
-    if not df.empty:
-        df_stats = df.copy()
+    if not df_tab5.empty:
+        df_stats = df_tab5.copy()
         df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
         
         start_str = start_date_tab5.strftime("%Y-%m-%d")
