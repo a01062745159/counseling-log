@@ -158,7 +158,7 @@ DOCTORS = ["안정선 대표원장", "김동현 대표원장", "이성재 수석
 df = load_gsheet_data(conn)
 
 # ===== 6개 탭 생성 (정렬된 순서) =====
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tabs_list = st.tabs([
     "📝 상담일지 작성", 
     "👤 상담 내용 조회", 
     "📞 미확정 리마인더", 
@@ -167,8 +167,16 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📥 자료 다운로드"
 ])
 
+# 탭 변수 매핑
+tab_write = tabs_list[0]      # 상담일지 작성
+tab_search = tabs_list[1]     # 상담 내용 조회
+tab_reminder = tabs_list[2]   # 미확정 리마인더
+tab_report = tabs_list[3]     # 상담 보고
+tab_stats = tabs_list[4]      # 상담 일지 통계
+tab_download = tabs_list[5]   # 자료 다운로드
+
 # ===== TAB 1: 상담일지 작성 =====
-with tab1:
+with tab_write:
     st.header("📝 상담일지 작성")
     
     # 입력 날짜 선택 (우측 상단)
@@ -264,7 +272,7 @@ with tab1:
             st.warning("⚠️ 환자명과 상담내용은 필수입니다.")
 
 # ===== TAB 2: 상담 보고 (보고용) =====
-with tab2:
+with tab_report:
     st.header("📄 상담 보고")
     
     # 데이터 새로 읽기 (최신 데이터 가져오기)
@@ -315,7 +323,7 @@ with tab2:
         st.info("조회할 데이터가 없습니다")
 
 # ===== TAB 3: 상담 내용 조회 (환자 검색) =====
-with tab3:
+with tab_search:
     st.header("👤 상담 내용 조회")
     
     st.write("환자 이름 또는 차트번호로 검색하세요. (부분 검색 가능)")
@@ -351,7 +359,7 @@ with tab3:
         st.info("데이터가 없습니다")
 
 # ===== TAB 4: 미확정 상담 리마인더 =====
-with tab4:
+with tab_reminder:
     st.header("📞 미확정 상담 리마인더")
     
     col1, col2 = st.columns(2)
@@ -454,7 +462,7 @@ with tab4:
         st.info("데이터가 없습니다.")
 
 # ===== TAB 5: 상담 일지 통계 =====
-with tab5:
+with tab_stats:
     st.header("📊 상담 일지 통계")
     
     # 데이터 새로고침
@@ -528,7 +536,7 @@ with tab5:
         st.info("데이터가 없습니다")
 
 # ===== TAB 6: 자료 다운로드 =====
-with tab6:
+with tab_download:
     st.header("📥 자료 다운로드")
     
     # 비밀번호 입력
