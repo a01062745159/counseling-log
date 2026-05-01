@@ -538,6 +538,20 @@ with tab_stats:
             # 통계 계산
             stats = calculate_stats(df_stats)
             
+            # 통계 메트릭 표시 (상단)
+            st.subheader("📊 상담일지 통계")
+            display_stats_metrics(stats)
+            
+            st.divider()
+            
+            if selected_counselor_tab5 == "전체":
+                st.subheader("👥 상담자별 매출 및 성과")
+                
+                counselor_sales_df = get_counselor_stats(df_stats, COUNSELORS)
+                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
+            
+            st.divider()
+            
             # 분류별 확정/미확정 현황
             st.subheader("📋 분류별 상담 현황 (확정/미확정)")
             
@@ -559,20 +573,6 @@ with tab_stats:
             
             category_result_df = pd.DataFrame(category_result_data)
             st.dataframe(category_result_df, use_container_width=True, hide_index=True)
-            
-            st.divider()
-            
-            if selected_counselor_tab5 == "전체":
-                st.subheader("👥 상담자별 매출 및 성과")
-                
-                counselor_sales_df = get_counselor_stats(df_stats, COUNSELORS)
-                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
-            
-            st.divider()
-            
-            # 통계 메트릭 표시 (하단)
-            st.subheader("📊 상담일지 통계")
-            display_stats_metrics(stats)
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
