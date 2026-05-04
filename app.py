@@ -173,7 +173,6 @@ df = load_gsheet_data(conn)
 # ===== 6개 탭 생성 (정렬된 순서) =====
 tabs_list = st.tabs([
     "📝 상담일지 작성", 
-    "🔍 상담 내용 검색", 
     "📞 미확정 리마인더", 
     "📋 기간 별 상담일지", 
     "📊 보고 자료",
@@ -182,11 +181,10 @@ tabs_list = st.tabs([
 
 # 탭 변수 매핑
 tab_write = tabs_list[0]      # 상담일지 작성
-tab_search = tabs_list[1]     # 상담 내용 조회
-tab_reminder = tabs_list[2]   # 미확정 리마인더
-tab_report = tabs_list[3]     # 상담 일지 조회 (이전 상담 보고)
-tab_integrated = tabs_list[4] # 상담 보고 (이전 통합 보고서)
-tab_download = tabs_list[5]   # 자료 다운로드
+tab_reminder = tabs_list[1]   # 미확정 리마인더
+tab_report = tabs_list[2]     # 기간 별 상담일지
+tab_integrated = tabs_list[3] # 보고 자료
+tab_download = tabs_list[4]   # 자료 다운로드
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab_write:
@@ -302,7 +300,7 @@ with tab_write:
 
 # ===== TAB 2: 상담 보고 (보고용) =====
 with tab_report:
-    st.header("📄 상담 보고")
+    st.header("📋 기간 별 상담일지")
     
     # 데이터 새로 읽기 (최신 데이터 가져오기)
     try:
@@ -312,90 +310,111 @@ with tab_report:
         st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
         df_tab2_source = pd.DataFrame()
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        selected_counselor_tab2 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab2_counselor")
-    with col2:
-        today = datetime.now().date()
-        start_date_tab2 = st.date_input("시작일", today, key="tab2_start")
-    with col3:
-        end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
+    # 모드 선택
+    st.write("**조회 방식을 선택하세요:**")
+    mode = st.radio("", ["📅 기간 선택", "🔍 환자 검색"], horizontal=True, key="tab_report_mode")
+    
+    st.divider()
     
     if not df_tab2_source.empty:
-        df_tab2 = df_tab2_source.copy()
-        
-        start_str = start_date_tab2.strftime("%Y-%m-%d")
-        end_str = end_date_tab2.strftime("%Y-%m-%d")
-        df_tab2 = df_tab2[(df_tab2['날짜'] >= start_str) & (df_tab2['날짜'] <= end_str)]
-        
-        if selected_counselor_tab2 != "전체":
-            df_tab2 = df_tab2[df_tab2['상담자'] == selected_counselor_tab2]
-        
-        # 상담 건수 표시
-        st.metric("📌 상담 건수", f"{len(df_tab2)}건")
-        st.divider()
-        
-        df_tab2 = df_tab2.iloc[::-1]
-        
-        st.subheader("📝 상담내용 상세")
-        for idx, row in df_tab2.iterrows():
-            with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.write(f"**분류:** {row['분류']}")
-                    st.write(f"**금액:** {format_amount(row['금액']):,}원")
-                with col2:
-                    st.write(f"**진단원장:** {row['진단원장']}")
-                    # 상담결과 색상 구분
-                    if row['상담결과'] == '확정':
-                        st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
-                with col3:
-                    st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
-                
-                st.markdown(f"**주요포인트:** {row['주요포인트']}")
-                st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
-    else:
-        st.info("조회할 데이터가 없습니다")
-
-# ===== TAB 3: 상담 내용 조회 (환자 검색) =====
-with tab_search:
-    st.header("👤 상담 내용 조회")
-    
-    st.write("환자 이름 또는 차트번호로 검색하세요. (부분 검색 가능)")
-    search_patient = st.text_input("🔍 환자 이름 또는 차트번호 검색", placeholder="예: 송호선, 12345 등")
-    
-    if not df.empty:
-        if search_patient:
-            # 환자 이름 또는 차트번호로 검색
-            df_search = df[
-                (df['환자성함'].str.contains(search_patient, case=False, na=False)) | 
-                (df['차트번호'].astype(str).str.contains(search_patient, case=False, na=False))
-            ].copy()
+        if mode == "📅 기간 선택":
+            # 기간 선택 모드
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                selected_counselor_tab2 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab2_counselor")
+            with col2:
+                today = datetime.now().date()
+                start_date_tab2 = st.date_input("시작일", today, key="tab2_start")
+            with col3:
+                end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
             
-            if not df_search.empty:
-                df_search = df_search.iloc[::-1]
-                
-                st.success(f"✅ '{search_patient}' 검색 결과: {len(df_search)}건")
+            df_tab2 = df_tab2_source.copy()
+            
+            start_str = start_date_tab2.strftime("%Y-%m-%d")
+            end_str = end_date_tab2.strftime("%Y-%m-%d")
+            df_tab2 = df_tab2[(df_tab2['날짜'] >= start_str) & (df_tab2['날짜'] <= end_str)]
+            
+            if selected_counselor_tab2 != "전체":
+                df_tab2 = df_tab2[df_tab2['상담자'] == selected_counselor_tab2]
+            
+            if not df_tab2.empty:
+                # 상담 건수 표시
+                st.metric("📌 상담 건수", f"{len(df_tab2)}건")
                 st.divider()
                 
-                for idx, row in df_search.iterrows():
-                    chart_num = format_chart_no(row['차트번호'])
-                    with st.expander(
-                        f"📌 {row['날짜']} - {row['환자성함']} (차트: {chart_num}) - {row['상담자']}", 
-                        expanded=False
-                    ):
+                df_tab2 = df_tab2.iloc[::-1]
+                
+                st.subheader("📝 상담내용 상세")
+                for idx, row in df_tab2.iterrows():
+                    with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.write(f"**분류:** {row['분류']}")
+                            st.write(f"**금액:** {format_amount(row['금액']):,}원")
+                        with col2:
+                            st.write(f"**진단원장:** {row['진단원장']}")
+                            # 상담결과 색상 구분
+                            if row['상담결과'] == '확정':
+                                st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
+                        with col3:
+                            st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
+                        
                         st.markdown(f"**주요포인트:** {row['주요포인트']}")
                         st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
             else:
-                st.warning(f"❌ '{search_patient}'에 해당하는 환자가 없습니다.")
-        else:
-            st.info("환자 이름 또는 차트번호를 입력해주세요.")
+                st.info("조회할 데이터가 없습니다")
+        
+        else:  # 환자 검색 모드
+            st.write("환자 이름 또는 차트번호로 검색하세요. (부분 검색 가능)")
+            search_patient = st.text_input("🔍 환자 이름 또는 차트번호 검색", placeholder="예: 송호선, 12345 등", key="tab_report_search")
+            
+            if search_patient:
+                # 환자 이름 또는 차트번호로 검색
+                df_search = df_tab2_source[
+                    (df_tab2_source['환자성함'].str.contains(search_patient, case=False, na=False)) | 
+                    (df_tab2_source['차트번호'].astype(str).str.contains(search_patient, case=False, na=False))
+                ].copy()
+                
+                if not df_search.empty:
+                    df_search = df_search.iloc[::-1]
+                    
+                    st.success(f"✅ '{search_patient}' 검색 결과: {len(df_search)}건")
+                    st.divider()
+                    
+                    for idx, row in df_search.iterrows():
+                        chart_num = format_chart_no(row['차트번호'])
+                        with st.expander(
+                            f"📌 {row['날짜']} - {row['환자성함']} (차트: {chart_num}) - {row['상담자']}", 
+                            expanded=True
+                        ):
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.write(f"**분류:** {row['분류']}")
+                                st.write(f"**금액:** {format_amount(row['금액']):,}원")
+                            with col2:
+                                st.write(f"**진단원장:** {row['진단원장']}")
+                                # 상담결과 색상 구분
+                                if row['상담결과'] == '확정':
+                                    st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
+                            with col3:
+                                st.write(f"**차트번호:** {chart_num}")
+                            
+                            st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                            st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+                else:
+                    st.warning(f"❌ '{search_patient}'에 해당하는 환자가 없습니다.")
+            else:
+                st.info("환자 이름 또는 차트번호를 입력해주세요.")
     else:
         st.info("데이터가 없습니다")
 
-# ===== TAB 4: 미확정 상담 리마인더 =====
+# ===== TAB 3: 상담 내용 조회 (환자 검색) =====
+
+# ===== TAB 3: 미확정 상담 리마인더 =====
 with tab_reminder:
     st.header("📞 미확정 상담 리마인더")
     
