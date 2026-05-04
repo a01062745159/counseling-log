@@ -174,7 +174,7 @@ df = load_gsheet_data(conn)
 tabs_list = st.tabs([
     "📝 상담일지 작성", 
     "📞 미확정 리마인더", 
-    "📋 기간 별 상담일지", 
+    "🔍 상담일지 조회", 
     "📊 보고 자료",
     "📥 자료 다운로드"
 ])
@@ -300,7 +300,7 @@ with tab_write:
 
 # ===== TAB 2: 상담 보고 (보고용) =====
 with tab_report:
-    st.header("📋 기간 별 상담일지")
+    st.header("🔍 상담일지 조회")
     
     # 데이터 새로 읽기 (최신 데이터 가져오기)
     try:
