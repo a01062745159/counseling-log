@@ -664,7 +664,7 @@ with tab_integrated:
             
             st.subheader("📝 상담내용 상세")
             for idx, row in df_report.iterrows():
-                with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=False):
+                with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.write(f"**분류:** {row['분류']}")
