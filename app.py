@@ -173,11 +173,10 @@ df = load_gsheet_data(conn)
 # ===== 6개 탭 생성 (정렬된 순서) =====
 tabs_list = st.tabs([
     "📝 상담일지 작성", 
-    "👤 상담 내용 조회", 
+    "🔍 상담 내용 조회", 
     "📞 미확정 리마인더", 
-    "📄 상담 보고", 
-    "📊 상담 일지 통계",
-    "📈 통합 보고서",
+    "📋 상담 일지 조회", 
+    "📄 상담 보고",
     "📥 자료 다운로드"
 ])
 
@@ -185,10 +184,9 @@ tabs_list = st.tabs([
 tab_write = tabs_list[0]      # 상담일지 작성
 tab_search = tabs_list[1]     # 상담 내용 조회
 tab_reminder = tabs_list[2]   # 미확정 리마인더
-tab_report = tabs_list[3]     # 상담 보고
-tab_stats = tabs_list[4]      # 상담 일지 통계
-tab_integrated = tabs_list[5] # 통합 보고서
-tab_download = tabs_list[6]   # 자료 다운로드
+tab_report = tabs_list[3]     # 상담 일지 조회 (이전 상담 보고)
+tab_integrated = tabs_list[4] # 상담 보고 (이전 통합 보고서)
+tab_download = tabs_list[5]   # 자료 다운로드
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab_write:
@@ -501,88 +499,9 @@ with tab_reminder:
         st.info("데이터가 없습니다.")
 
 # ===== TAB 5: 상담 일지 통계 =====
-with tab_stats:
-    st.header("📊 상담 일지 통계")
-    
-    # 데이터 새로고침
-    try:
-        df_tab5 = conn.read(ttl="0s")
-        df_tab5 = df_tab5.dropna(subset=["환자성함"]).copy()
-        if '진단원장' not in df_tab5.columns:
-            df_tab5['진단원장'] = ''
-        if '리콜상태' not in df_tab5.columns:
-            df_tab5['리콜상태'] = '미리콜'
-    except Exception as e:
-        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-        df_tab5 = pd.DataFrame()
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        selected_counselor_tab5 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab5_stat_counselor")
-    with col2:
-        today = datetime.now().date()
-        start_date_tab5 = st.date_input("시작일", today, key="tab5_start")
-    with col3:
-        end_date_tab5 = st.date_input("종료일", today, key="tab5_end")
-    
-    if not df_tab5.empty:
-        df_stats = df_tab5.copy()
-        df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
-        
-        start_str = start_date_tab5.strftime("%Y-%m-%d")
-        end_str = end_date_tab5.strftime("%Y-%m-%d")
-        df_stats = df_stats[(df_stats['날짜'] >= start_str) & (df_stats['날짜'] <= end_str)]
-        
-        if selected_counselor_tab5 != "전체":
-            df_stats = df_stats[df_stats['상담자'] == selected_counselor_tab5]
-        
-        if not df_stats.empty:
-            # 통계 계산
-            stats = calculate_stats(df_stats)
-            
-            # 통계 메트릭 표시 (상단)
-            st.subheader("📊 상담일지 통계")
-            display_stats_metrics(stats)
-            
-            st.divider()
-            
-            if selected_counselor_tab5 == "전체":
-                st.subheader("👥 상담자별 매출 및 성과")
-                
-                counselor_sales_df = get_counselor_stats(df_stats, COUNSELORS)
-                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
-            
-            st.divider()
-            
-            # 분류별 확정/미확정 현황
-            st.subheader("📋 분류별 상담 현황 (확정/미확정)")
-            
-            category_order = ['예약 신환', '미예약 신환', '예약 구환', '미예약 구환']
-            
-            # 분류별 확정/미확정 교차표
-            category_result_data = []
-            for category in category_order:
-                category_df = df_stats[df_stats['분류'] == category]
-                confirmed = len(category_df[category_df['상담결과'] == '확정'])
-                unconfirmed = len(category_df[category_df['상담결과'] == '미확정'])
-                
-                category_result_data.append({
-                    '분류': category,
-                    '확정': confirmed,
-                    '미확정': unconfirmed,
-                    '합계': confirmed + unconfirmed
-                })
-            
-            category_result_df = pd.DataFrame(category_result_data)
-            st.dataframe(category_result_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("해당 기간에 상담 기록이 없습니다")
-    else:
-        st.info("데이터가 없습니다")
-
-# ===== TAB 6: 통합 보고서 =====
+# ===== TAB 5: 상담 보고 =====
 with tab_integrated:
-    st.header("📈 통합 보고서")
+    st.header("📄 상담 보고")
     
     # 데이터 새로고침
     try:
@@ -686,7 +605,7 @@ with tab_integrated:
     else:
         st.info("데이터가 없습니다")
 
-# ===== TAB 7: 자료 다운로드 =====
+# ===== TAB 6: 자료 다운로드 =====
 with tab_download:
     st.header("📥 자료 다운로드")
     
