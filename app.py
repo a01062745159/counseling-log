@@ -177,6 +177,7 @@ tabs_list = st.tabs([
     "📞 미확정 리마인더", 
     "📄 상담 보고", 
     "📊 상담 일지 통계",
+    "📈 통합 보고서",
     "📥 자료 다운로드"
 ])
 
@@ -186,7 +187,8 @@ tab_search = tabs_list[1]     # 상담 내용 조회
 tab_reminder = tabs_list[2]   # 미확정 리마인더
 tab_report = tabs_list[3]     # 상담 보고
 tab_stats = tabs_list[4]      # 상담 일지 통계
-tab_download = tabs_list[5]   # 자료 다운로드
+tab_integrated = tabs_list[5] # 통합 보고서
+tab_download = tabs_list[6]   # 자료 다운로드
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab_write:
@@ -578,7 +580,113 @@ with tab_stats:
     else:
         st.info("데이터가 없습니다")
 
-# ===== TAB 6: 자료 다운로드 =====
+# ===== TAB 6: 통합 보고서 =====
+with tab_integrated:
+    st.header("📈 통합 보고서")
+    
+    # 데이터 새로고침
+    try:
+        df_integrated = conn.read(ttl="0s")
+        df_integrated = df_integrated.dropna(subset=["환자성함"]).copy()
+        if '진단원장' not in df_integrated.columns:
+            df_integrated['진단원장'] = ''
+        if '리콜상태' not in df_integrated.columns:
+            df_integrated['리콜상태'] = '미리콜'
+    except Exception as e:
+        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        df_integrated = pd.DataFrame()
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        selected_counselor_integrated = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="integrated_counselor")
+    with col2:
+        today = datetime.now().date()
+        start_date_integrated = st.date_input("시작일", today, key="integrated_start")
+    with col3:
+        end_date_integrated = st.date_input("종료일", today, key="integrated_end")
+    
+    if not df_integrated.empty:
+        df_report = df_integrated.copy()
+        df_report['금액_숫자'] = pd.to_numeric(df_report['금액'], errors='coerce').fillna(0)
+        
+        start_str = start_date_integrated.strftime("%Y-%m-%d")
+        end_str = end_date_integrated.strftime("%Y-%m-%d")
+        df_report = df_report[(df_report['날짜'] >= start_str) & (df_report['날짜'] <= end_str)]
+        
+        if selected_counselor_integrated != "전체":
+            df_report = df_report[df_report['상담자'] == selected_counselor_integrated]
+        
+        if not df_report.empty:
+            # 1. 상담일지 통계 (상단)
+            stats_integrated = calculate_stats(df_report)
+            st.subheader("📊 상담일지 통계")
+            display_stats_metrics(stats_integrated)
+            
+            st.divider()
+            
+            # 2. 상담자별 매출 및 성과
+            if selected_counselor_integrated == "전체":
+                st.subheader("👥 상담자별 매출 및 성과")
+                
+                counselor_sales_df = get_counselor_stats(df_report, COUNSELORS)
+                st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
+                
+                st.divider()
+            
+            # 3. 분류별 상담 현황
+            st.subheader("📋 분류별 상담 현황 (확정/미확정)")
+            
+            category_order = ['예약 신환', '미예약 신환', '예약 구환', '미예약 구환']
+            
+            category_result_data = []
+            for category in category_order:
+                category_df = df_report[df_report['분류'] == category]
+                confirmed = len(category_df[category_df['상담결과'] == '확정'])
+                unconfirmed = len(category_df[category_df['상담결과'] == '미확정'])
+                
+                category_result_data.append({
+                    '분류': category,
+                    '확정': confirmed,
+                    '미확정': unconfirmed,
+                    '합계': confirmed + unconfirmed
+                })
+            
+            category_result_df = pd.DataFrame(category_result_data)
+            st.dataframe(category_result_df, use_container_width=True, hide_index=True)
+            
+            st.divider()
+            
+            # 4. 상담내용 상세
+            st.metric("📌 상담 건수", f"{len(df_report)}건")
+            st.divider()
+            
+            df_report = df_report.iloc[::-1]
+            
+            st.subheader("📝 상담내용 상세")
+            for idx, row in df_report.iterrows():
+                with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=False):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.write(f"**분류:** {row['분류']}")
+                        st.write(f"**금액:** {format_amount(row['금액']):,}원")
+                    with col2:
+                        st.write(f"**진단원장:** {row['진단원장']}")
+                        # 상담결과 색상 구분
+                        if row['상담결과'] == '확정':
+                            st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
+                    with col3:
+                        st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
+                    
+                    st.markdown(f"**주요포인트:** {row['주요포인트']}")
+                    st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+        else:
+            st.info("해당 기간에 상담 기록이 없습니다")
+    else:
+        st.info("데이터가 없습니다")
+
+# ===== TAB 7: 자료 다운로드 =====
 with tab_download:
     st.header("📥 자료 다운로드")
     
