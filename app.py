@@ -684,8 +684,11 @@ with tab_download:
                 
                 # 상담 보고 내용
                 st.subheader("📝 상담 보고 내용")
-                # 금액을 숫자로 변환 (정렬을 위해)
-                df_report['금액_숫자'] = pd.to_numeric(df_report['금액'], errors='coerce').fillna(0)
+                # 금액을 숫자로 변환 (특수문자 제거)
+                df_report = df_report.copy()
+                df_report['금액_숫자'] = df_report['금액'].astype(str).str.replace('₩', '').str.replace(',', '').str.replace('원', '').str.strip()
+                df_report['금액_숫자'] = pd.to_numeric(df_report['금액_숫자'], errors='coerce').fillna(0).astype(int)
+                
                 # 날짜별 오름차순 + 비용 내림차순(높은순) 정렬
                 df_report_sorted = df_report.sort_values(
                     by=['날짜', '금액_숫자'], 
