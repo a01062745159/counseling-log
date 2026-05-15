@@ -308,105 +308,81 @@ with tab_report:
         st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
         df_tab2_source = pd.DataFrame()
     
-    # 모드 선택
-    st.write("**조회 방식을 선택하세요:**")
-    mode = st.radio("", ["📅 기간 선택", "🔍 환자 검색"], horizontal=True, key="tab_report_mode")
-    
-    st.divider()
     
     if not df_tab2_source.empty:
-        if mode == "📅 기간 선택":
-            # 기간 선택 모드
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                selected_counselor_tab2 = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab2_counselor")
-            with col2:
-                today = datetime.now().date()
-                start_date_tab2 = st.date_input("시작일", today, key="tab2_start")
-            with col3:
-                end_date_tab2 = st.date_input("종료일", today, key="tab2_end")
+        st.write("환자 이름 또는 차트번호로 검색하세요. (부분 검색 가능)")
+        search_patient = st.text_input("🔍 환자 이름 또는 차트번호 검색", placeholder="예: 송호선, 12345 등", key="tab_report_search")
+        
+        if search_patient:
+            # 환자 이름 또는 차트번호로 검색
+            df_search = df_tab2_source[
+                (df_tab2_source['환자성함'].str.contains(search_patient, case=False, na=False)) | 
+                (df_tab2_source['차트번호'].astype(str).str.contains(search_patient, case=False, na=False))
+            ].copy()
             
-            df_tab2 = df_tab2_source.copy()
-            
-            start_str = start_date_tab2.strftime("%Y-%m-%d")
-            end_str = end_date_tab2.strftime("%Y-%m-%d")
-            df_tab2 = df_tab2[(df_tab2['날짜'] >= start_str) & (df_tab2['날짜'] <= end_str)]
-            
-            if selected_counselor_tab2 != "전체":
-                df_tab2 = df_tab2[df_tab2['상담자'] == selected_counselor_tab2]
-            
-            if not df_tab2.empty:
-                # 상담 건수 표시
-                st.metric("📌 상담 건수", f"{len(df_tab2)}건")
+            if not df_search.empty:
+                st.success(f"✅ '{search_patient}' 검색 결과: {len(df_search)}건")
                 st.divider()
                 
-                df_tab2 = df_tab2.iloc[::-1]
-                
-                st.subheader("📝 상담내용 상세")
-                for idx, row in df_tab2.iterrows():
-                    with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
+                for idx, row in df_search.iterrows():
+                    chart_num = format_chart_no(row['차트번호'])
+                    with st.expander(
+                        f"📌 {row['날짜']} - {row['환자성함']} (차트: {chart_num}) - {row['상담자']}", 
+                        expanded=True
+                    ):
                         col1, col2, col3 = st.columns(3)
                         with col1:
                             st.write(f"**분류:** {row['분류']}")
                             st.write(f"**금액:** {format_amount(row['금액']):,}원")
                         with col2:
                             st.write(f"**진단원장:** {row['진단원장']}")
-                            # 상담결과 색상 구분
-                            if row['상담결과'] == '확정':
-                                st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
-                            else:
-                                st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
+                            # 현재 상담결과 표시
+                            current_result = row['상담결과']
+                            st.write(f"**현재 상담결과:** {current_result}")
+                            
+                            # 상담결과 수정하기
+                            st.write("**상담결과 수정:**")
+                            new_result = st.selectbox(
+                                "변경할 상담결과 선택", 
+                                ["확정", "미확정"], 
+                                index=0 if current_result == "확정" else 1,
+                                key=f"result_{idx}_{row['환자성함']}"
+                            )
                         with col3:
-                            st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
+                            st.write(f"**차트번호:** {chart_num}")
+                            
+                            # 현재 날짜 표시
+                            current_date = row['날짜']
+                            st.write(f"**현재 날짜:** {current_date}")
+                            
+                            # 날짜 수정하기
+                            st.write("**날짜 수정:**")
+                            date_obj = datetime.strptime(current_date, "%Y-%m-%d").date()
+                            new_date = st.date_input(
+                                "변경할 날짜", 
+                                value=date_obj,
+                                key=f"date_{idx}_{row['환자성함']}"
+                            )
+                        
+                        # 수정사항이 있으면 저장 버튼 표시
+                        has_changes = (new_result != current_result) or (new_date != date_obj)
+                        if has_changes:
+                            if st.button(f"✅ 저장", key=f"save_{idx}_{row['환자성함']}"):
+                                changes = []
+                                if new_result != current_result:
+                                    changes.append(f"상담결과: {current_result} → {new_result}")
+                                if new_date != date_obj:
+                                    changes.append(f"날짜: {current_date} → {new_date.strftime('%Y-%m-%d')}")
+                                
+                                st.success(f"✅ 변경 완료!\n" + "\n".join(changes))
+                                # TODO: Google Sheets 업데이트 코드 추가 필요
                         
                         st.markdown(f"**주요포인트:** {row['주요포인트']}")
                         st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
             else:
-                st.info("조회할 데이터가 없습니다")
-        
-        else:  # 환자 검색 모드
-            st.write("환자 이름 또는 차트번호로 검색하세요. (부분 검색 가능)")
-            search_patient = st.text_input("🔍 환자 이름 또는 차트번호 검색", placeholder="예: 송호선, 12345 등", key="tab_report_search")
-            
-            if search_patient:
-                # 환자 이름 또는 차트번호로 검색
-                df_search = df_tab2_source[
-                    (df_tab2_source['환자성함'].str.contains(search_patient, case=False, na=False)) | 
-                    (df_tab2_source['차트번호'].astype(str).str.contains(search_patient, case=False, na=False))
-                ].copy()
-                
-                if not df_search.empty:
-                    df_search = df_search.iloc[::-1]
-                    
-                    st.success(f"✅ '{search_patient}' 검색 결과: {len(df_search)}건")
-                    st.divider()
-                    
-                    for idx, row in df_search.iterrows():
-                        chart_num = format_chart_no(row['차트번호'])
-                        with st.expander(
-                            f"📌 {row['날짜']} - {row['환자성함']} (차트: {chart_num}) - {row['상담자']}", 
-                            expanded=True
-                        ):
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.write(f"**분류:** {row['분류']}")
-                                st.write(f"**금액:** {format_amount(row['금액']):,}원")
-                            with col2:
-                                st.write(f"**진단원장:** {row['진단원장']}")
-                                # 상담결과 색상 구분
-                                if row['상담결과'] == '확정':
-                                    st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
-                                else:
-                                    st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
-                            with col3:
-                                st.write(f"**차트번호:** {chart_num}")
-                            
-                            st.markdown(f"**주요포인트:** {row['주요포인트']}")
-                            st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
-                else:
-                    st.warning(f"❌ '{search_patient}'에 해당하는 환자가 없습니다.")
-            else:
-                st.info("환자 이름 또는 차트번호를 입력해주세요.")
+                st.warning(f"❌ '{search_patient}'에 해당하는 환자가 없습니다.")
+        else:
+            st.info("환자 이름 또는 차트번호를 입력해주세요.")
     else:
         st.info("데이터가 없습니다")
 
@@ -619,286 +595,3 @@ with tab_integrated:
                     st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
-    else:
-        st.info("데이터가 없습니다")
-with tab_download:
-    st.header("📥 자료 다운로드")
-    
-    # 비밀번호 입력
-    report_password = st.text_input("🔐 비밀번호 입력", type="password", placeholder="비밀번호를 입력하세요", key="tab7_password")
-    
-    if report_password == "2872":
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            report_counselor = st.selectbox("👤 상담자 선택", ["전체"] + COUNSELORS, key="tab7_counselor")
-        with col2:
-            today = datetime.now().date()
-            report_start_date = st.date_input("시작일", today, key="tab7_start")
-        with col3:
-            report_end_date = st.date_input("종료일", today, key="tab7_end")
-    
-    if report_password == "2872":
-        
-        if not df.empty:
-            df_report = df.copy()
-            df_report['금액_숫자'] = pd.to_numeric(df_report['금액'], errors='coerce').fillna(0)
-            
-            start_str = report_start_date.strftime("%Y-%m-%d")
-            end_str = report_end_date.strftime("%Y-%m-%d")
-            df_report = df_report[(df_report['날짜'] >= start_str) & (df_report['날짜'] <= end_str)]
-            
-            if report_counselor != "전체":
-                df_report = df_report[df_report['상담자'] == report_counselor]
-            
-            if not df_report.empty:
-                # 통계 계산
-                stats = calculate_stats(df_report)
-                total_count = stats['total_count']
-                total_amount = stats['total_amount']
-                confirmed_count = stats['confirmed_count']
-                unconfirmed_count = stats['unconfirmed_count']
-                confirmed_amount = stats['confirmed_amount']
-                unconfirmed_amount = stats['unconfirmed_amount']
-                agreement_rate = stats['agreement_rate']
-                
-                # 상단 통계 표시
-                st.subheader("📊 상담 통계")
-                display_stats_metrics(stats)
-                
-                st.divider()
-                
-                # 상담자별 매출 및 성과
-                st.subheader("👥 상담자별 매출 및 성과")
-                
-                if report_counselor == "전체":
-                    counselor_sales_df = get_counselor_stats(df_report, COUNSELORS)
-                    st.dataframe(counselor_sales_df, use_container_width=True, hide_index=True)
-                else:
-                    st.info("전체 상담자를 선택해야 상담자별 성과를 볼 수 있습니다.")
-                
-                st.divider()
-                
-                # 상담 보고 내용
-                st.subheader("📝 상담 보고 내용")
-                
-                # 🔍 디버깅용 정렬 정보 표시
-                with st.expander("🔍 정렬 디버깅 정보", expanded=False):
-                    st.write(f"총 상담 건수: {len(df_report)}")
-                    st.write(f"데이터프레임 컬럼: {df_report.columns.tolist()}")
-                
-                # 금액을 정수로 변환 (숫자 형식 명확히)
-                df_report = df_report.copy()
-                
-                # 금액 변환 - 여러 방법으로 시도
-                df_report['금액_정렬용'] = df_report['금액'].apply(lambda x: int(float(str(x).replace(',', ''))) if pd.notnull(x) else 0)
-                
-                # 🔍 **정렬 전 데이터 확인** (필수!)
-                st.warning("⚠️ **정렬 디버깅 정보**")
-                st.write(f"데이터 개수: {len(df_report)}")
-                st.write(f"샘플 데이터 (정렬 전 상위 3개):")
-                for i in range(min(3, len(df_report))):
-                    row = df_report.iloc[i]
-                    st.write(f"  {i+1}. {row['날짜']} | {row['환자성함']} | 금액: {row['금액']} → {row['금액_정렬용']}원")
-                
-                # **날짜로 먼저 그룹화, 각 그룹 내에서 금액 정렬**
-                df_report_sorted = df_report.sort_values(by=['날짜', '금액_정렬용'], ascending=[True, False]).reset_index(drop=True)
-                
-                # 🔍 **정렬 후 데이터 확인** (필수!)
-                st.success("✅ **정렬 완료!**")
-                st.write(f"정렬된 상위 3개 (높은순):")
-                for i in range(min(3, len(df_report_sorted))):
-                    row = df_report_sorted.iloc[i]
-                    st.write(f"  {i+1}. {row['날짜']} | {row['환자성함']} | **₩{row['금액_정렬용']:,}** ← 정렬용")
-                
-                st.divider()
-                
-                df_report_sorted = df_report_sorted.drop('금액_정렬용', axis=1)
-                
-                for idx, row in df_report_sorted.iterrows():
-                    with st.expander(
-                        f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", 
-                        expanded=False
-                    ):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.write(f"**진단 원장:** {row['진단원장']}")
-                            st.write(f"**분류:** {row['분류']}")
-                            # 상담결과 색상 구분
-                            if row['상담결과'] == '확정':
-                                st.markdown(f"**상담결과:** <span style='color: blue; font-weight: bold;'>확정</span>", unsafe_allow_html=True)
-                            else:
-                                st.markdown(f"**상담결과:** <span style='color: red; font-weight: bold;'>미확정</span>", unsafe_allow_html=True)
-                        with col2:
-                            st.write(f"**금액:** {format_amount(row['금액']):,}원")
-                            st.write(f"**상담자:** {row['상담자']}")
-                        
-                        st.markdown(f"**주요포인트:** {row['주요포인트']}")
-                        st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
-                
-                st.divider()
-                
-                # Excel 다운로드
-                st.subheader("📥 Excel 다운로드")
-                
-                try:
-                    import openpyxl
-                    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                    from io import BytesIO
-                    
-                    # Excel 파일 생성
-                    output = BytesIO()
-                    
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        # 1. 통계 시트
-                        stats_data = {
-                            '항목': ['전체 상담건수', '총 상담액', '동의율', '확정 건수', '확정 상담액', '미확정 건수', '미확정 상담액'],
-                            '값': [f"{total_count}건", f"{total_amount:,}원", f"{agreement_rate:.1f}%", 
-                                   f"{confirmed_count}건", f"{confirmed_amount:,}원", f"{unconfirmed_count}건", f"{unconfirmed_amount:,}원"]
-                        }
-                        stats_df = pd.DataFrame(stats_data)
-                        stats_df.to_excel(writer, sheet_name='통계', index=False)
-                        
-                        # 2. 상담자별 성과 시트
-                        if report_counselor == "전체":
-                            counselor_sales_df.to_excel(writer, sheet_name='상담자별성과', index=False)
-                        
-                        # 3. 상담 내용 시트
-                        report_export_df = df_report_sorted[['날짜', '상담자', '진단원장', '환자성함', '차트번호', '분류', '상담결과', '금액', '주요포인트', '상담내용']].copy()
-                        report_export_df.to_excel(writer, sheet_name='상담내용', index=False)
-                    
-                    output.seek(0)
-                    
-                    st.download_button(
-                        label="📥 Excel 파일 다운로드",
-                        data=output.getvalue(),
-                        file_name=f"수려한치과_상담보고_{report_start_date.strftime('%Y%m%d')}_{report_end_date.strftime('%Y%m%d')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                except ImportError:
-                    st.warning("⚠️ Excel 기능을 사용하려면 openpyxl 라이브러리가 필요합니다.")
-                
-                st.divider()
-                
-                # PNG 이미지 다운로드 (ZIP 파일로 통합)
-                st.subheader("📸 이미지 다운로드 (카톡 공유용)")
-                
-                import matplotlib.pyplot as plt
-                import matplotlib
-                from io import BytesIO
-                import zipfile
-                
-                # matplotlib 한글 폰트 설정
-                plt.rcParams['font.family'] = 'DejaVu Sans'
-                plt.rcParams['axes.unicode_minus'] = False
-                
-                # ZIP 파일 생성
-                zip_buffer = BytesIO()
-                
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-                    # 1. 통계 정보 이미지
-                    fig, ax = plt.subplots(figsize=(12, 8), dpi=100)
-                    ax.axis('off')
-                    
-                    stats_text = f"""Consultation Statistics
-{report_start_date} ~ {report_end_date}
-Counselor: {report_counselor if report_counselor != '전체' else 'All'}
-
-{'='*60}
-
-Total Consultations: {total_count}
-Total Amount: ₩ {total_amount:,}
-Agreement Rate: {agreement_rate:.1f}%
-
-Confirmed: {confirmed_count}
-Confirmed Amount: ₩ {confirmed_amount:,}
-
-Unconfirmed: {unconfirmed_count}
-Unconfirmed Amount: ₩ {unconfirmed_amount:,}
-
-{'='*60}"""
-                    
-                    ax.text(0.5, 0.5, stats_text, ha='center', va='center', 
-                           fontsize=11, family='monospace',
-                           bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
-                    
-                    img_bytes = BytesIO()
-                    plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
-                    img_bytes.seek(0)
-                    plt.close()
-                    
-                    zf.writestr('1_Statistics.png', img_bytes.getvalue())
-                    
-                    # 2. 상담자별 성과 이미지
-                    if report_counselor == "전체":
-                        fig, ax = plt.subplots(figsize=(14, 8), dpi=100)
-                        ax.axis('off')
-                        
-                        perf_text = "Counselor Performance\n\n"
-                        perf_text += "Name | Count | OK | X | Rate | Confirmed Sales | Unconfirmed Sales\n"
-                        perf_text += "="*100 + "\n"
-                        
-                        for _, row in counselor_sales_df.iterrows():
-                            perf_text += f"{row['상담자']} | {row['상담건수']} | {row['확정건수']} | {row['미확정건수']} | {row['동의율']} | {row['확정매출']} | {row['미확정매출']}\n"
-                        
-                        ax.text(0.05, 0.95, perf_text, ha='left', va='top', 
-                               fontsize=9, family='monospace',
-                               bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.2))
-                        
-                        img_bytes = BytesIO()
-                        plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
-                        img_bytes.seek(0)
-                        plt.close()
-                        
-                        zf.writestr('2_Performance.png', img_bytes.getvalue())
-                    
-                    # 3. 상담 내용 이미지
-                    num_cases = len(df_report_sorted)
-                    fig_height = max(10, 5 + (num_cases * 0.6))
-                    
-                    fig, ax = plt.subplots(figsize=(14, fig_height), dpi=100)
-                    ax.axis('off')
-                    
-                    content_text = f"""Consultation Details
-{report_start_date} ~ {report_end_date}
-Counselor: {report_counselor if report_counselor != '전체' else 'All'}
-Total: {num_cases} cases
-
-"""
-                    
-                    for _, row in df_report_sorted.iterrows():
-                        content_text += f"\n[{row['날짜']}] {row['환자성함']}\n"
-                        content_text += f"Counselor: {row['상담자']} | Doctor: {row['진단원장']}\n"
-                        content_text += f"Type: {row['분류']} | Result: {row['상담결과']} | Amount: {format_amount(row['금액']):,}\n"
-                        content_text += f"Point: {row['주요포인트']}\n"
-                        content_text += "-"*70 + "\n"
-                    
-                    ax.text(0.05, 0.98, content_text, ha='left', va='top', 
-                           fontsize=8, family='monospace',
-                           bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.2))
-                    
-                    img_bytes = BytesIO()
-                    plt.savefig(img_bytes, format='png', dpi=100, bbox_inches='tight')
-                    img_bytes.seek(0)
-                    plt.close()
-                    
-                    zf.writestr('3_ConsultationDetails.png', img_bytes.getvalue())
-                
-                zip_buffer.seek(0)
-                
-                st.download_button(
-                    label="📥 모든 이미지 다운로드 (ZIP)",
-                    data=zip_buffer.getvalue(),
-                    file_name=f"수려한치과_이미지_{report_start_date.strftime('%Y%m%d')}.zip",
-                    mime="application/zip",
-                    use_container_width=True
-                )
-                
-                st.divider()
-            else:
-                st.info("해당 기간에 상담 기록이 없습니다")
-        else:
-            st.info("데이터가 없습니다")
-    
-    elif report_password:
-        st.error("❌ 비밀번호가 틀렸습니다.")
