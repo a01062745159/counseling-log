@@ -3,6 +3,9 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
 import re
+import plotly.express as px
+import plotly.graph_objects as go
+from calendar import monthrange
 
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
@@ -175,7 +178,8 @@ tabs_list = st.tabs([
     "📝 상담일지 작성", 
     "📞 미확정 리마인더", 
     "🔍 상담일지 수정", 
-    "📊 보고 자료"
+    "📊 보고 자료",
+    "📈 통계"
 ])
 
 # 탭 변수 매핑
@@ -183,6 +187,7 @@ tab_write = tabs_list[0]      # 상담일지 작성
 tab_reminder = tabs_list[1]   # 미확정 리마인더
 tab_report = tabs_list[2]     # 상담일지 수정
 tab_integrated = tabs_list[3] # 보고 자료
+tab_statistics = tabs_list[4] # 통계
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab_write:
@@ -594,5 +599,184 @@ with tab_integrated:
                     
                     st.markdown(f"**주요포인트:** {row['주요포인트']}")
                     st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
+        else:
+            st.info("해당 기간에 상담 기록이 없습니다")
+
+# ===== TAB 5: 통계 =====
+with tab_statistics:
+    st.header("📈 통계 분석")
+    
+    # 데이터 새로고침
+    try:
+        df_stats = conn.read(ttl="0s")
+        df_stats = df_stats.dropna(subset=["환자성함"]).copy()
+        if '진단원장' not in df_stats.columns:
+            df_stats['진단원장'] = ''
+        if '리콜상태' not in df_stats.columns:
+            df_stats['리콜상태'] = '미리콜'
+    except Exception as e:
+        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        df_stats = pd.DataFrame()
+    
+    if not df_stats.empty:
+        # 날짜 선택 옵션
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            date_type = st.radio(
+                "📅 기간 선택",
+                ["월간", "특정 기간"],
+                horizontal=True,
+                key="stats_date_type"
+            )
+        
+        if date_type == "월간":
+            with col2:
+                selected_year = st.selectbox(
+                    "연도",
+                    range(2020, datetime.now().year + 1),
+                    index=datetime.now().year - 2020,
+                    key="stats_year"
+                )
+            with col3:
+                selected_month = st.selectbox(
+                    "월",
+                    range(1, 13),
+                    index=datetime.now().month - 1,
+                    key="stats_month"
+                )
+            
+            # 월간 데이터 필터링
+            start_date_stats = datetime(selected_year, selected_month, 1).date()
+            last_day = monthrange(selected_year, selected_month)[1]
+            end_date_stats = datetime(selected_year, selected_month, last_day).date()
+        else:
+            with col2:
+                start_date_stats = st.date_input(
+                    "시작일",
+                    datetime.now().date(),
+                    key="stats_start"
+                )
+            with col3:
+                end_date_stats = st.date_input(
+                    "종료일",
+                    datetime.now().date(),
+                    key="stats_end"
+                )
+        
+        # 날짜 필터링
+        df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
+        
+        start_str = start_date_stats.strftime("%Y-%m-%d")
+        end_str = end_date_stats.strftime("%Y-%m-%d")
+        df_stats_filtered = df_stats[(df_stats['날짜'] >= start_str) & (df_stats['날짜'] <= end_str)].copy()
+        
+        if not df_stats_filtered.empty:
+            st.divider()
+            
+            # 1️⃣ 상담자별 상담 건수
+            st.subheader("📊 상담자별 상담 건수")
+            counselor_count = df_stats_filtered['상담자'].value_counts().sort_values(ascending=False)
+            
+            fig1 = px.bar(
+                x=counselor_count.index,
+                y=counselor_count.values,
+                labels={'x': '상담자', 'y': '상담 건수'},
+                title="상담자별 상담 건수",
+                text_auto=True,
+                color=counselor_count.values,
+                color_continuous_scale="Blues"
+            )
+            fig1.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig1, use_container_width=True)
+            
+            st.divider()
+            
+            # 2️⃣ 상담자별 매출액
+            st.subheader("💰 상담자별 매출액")
+            counselor_sales = df_stats_filtered.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
+            
+            fig2 = px.bar(
+                x=counselor_sales.index,
+                y=counselor_sales.values,
+                labels={'x': '상담자', 'y': '매출액 (원)'},
+                title="상담자별 총 매출액",
+                text_auto=True,
+                color=counselor_sales.values,
+                color_continuous_scale="Greens"
+            )
+            fig2.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig2, use_container_width=True)
+            
+            st.divider()
+            
+            # 3️⃣ 상담 결과 분포
+            st.subheader("✅ 상담 결과 분포")
+            result_dist = df_stats_filtered['상담결과'].value_counts()
+            
+            fig3 = px.pie(
+                values=result_dist.values,
+                names=result_dist.index,
+                title="상담 결과 분포 (확정/미확정)",
+                color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
+                hole=0
+            )
+            fig3.update_layout(height=400)
+            st.plotly_chart(fig3, use_container_width=True)
+            
+            st.divider()
+            
+            # 4️⃣ 날짜별 상담 추이
+            st.subheader("📈 날짜별 상담 추이")
+            daily_count = df_stats_filtered.groupby('날짜').size().reset_index(name='상담건수')
+            
+            fig4 = px.line(
+                daily_count,
+                x='날짜',
+                y='상담건수',
+                title="날짜별 상담 건수 추이",
+                markers=True,
+                line_shape='linear'
+            )
+            fig4.update_traces(line=dict(color='#3366cc', width=3), marker=dict(size=8))
+            fig4.update_layout(height=400, hovermode='x unified')
+            st.plotly_chart(fig4, use_container_width=True)
+            
+            st.divider()
+            
+            # 5️⃣ 상담 결과별 매출액
+            st.subheader("💵 상담 결과별 매출액")
+            result_sales = df_stats_filtered.groupby('상담결과')['금액_숫자'].sum()
+            
+            fig5 = px.bar(
+                x=result_sales.index,
+                y=result_sales.values,
+                labels={'x': '상담결과', 'y': '매출액 (원)'},
+                title="상담 결과별 총 매출액",
+                text_auto=True,
+                color=result_sales.index,
+                color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'}
+            )
+            fig5.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig5, use_container_width=True)
+            
+            st.divider()
+            
+            # 📊 요약 통계
+            st.subheader("📊 요약 통계")
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
+            with col1:
+                st.metric("📌 총 상담건수", f"{len(df_stats_filtered)}건")
+            with col2:
+                st.metric("💰 총 매출액", f"{int(df_stats_filtered['금액_숫자'].sum()):,}원")
+            with col3:
+                st.metric("✅ 확정건수", f"{len(df_stats_filtered[df_stats_filtered['상담결과'] == '확정'])}건")
+            with col4:
+                st.metric("❌ 미확정건수", f"{len(df_stats_filtered[df_stats_filtered['상담결과'] == '미확정'])}건")
+            with col5:
+                rate = (len(df_stats_filtered[df_stats_filtered['상담결과'] == '확정']) / len(df_stats_filtered) * 100) if len(df_stats_filtered) > 0 else 0
+                st.metric("🎯 동의율", f"{rate:.1f}%")
+        
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
