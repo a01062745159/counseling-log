@@ -684,11 +684,13 @@ with tab_download:
                 
                 # 상담 보고 내용
                 st.subheader("📝 상담 보고 내용")
+                # 금액을 숫자로 변환 (정렬을 위해)
+                df_report['금액_숫자'] = pd.to_numeric(df_report['금액'], errors='coerce').fillna(0)
                 # 날짜별 오름차순 + 비용 내림차순(높은순) 정렬
                 df_report_sorted = df_report.sort_values(
-                    by=['날짜', '금액'], 
+                    by=['날짜', '금액_숫자'], 
                     ascending=[True, False]
-                )
+                ).drop('금액_숫자', axis=1)  # 정렬용 컬럼 제거
                 
                 for idx, row in df_report_sorted.iterrows():
                     with st.expander(
