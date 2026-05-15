@@ -350,13 +350,34 @@ with tab_report:
                                 index=0 if current_result == "확정" else 1,
                                 key=f"result_{idx}_{row['환자성함']}"
                             )
-                            
-                            if new_result != current_result:
-                                if st.button(f"✅ 저장", key=f"save_{idx}_{row['환자성함']}"):
-                                    st.success(f"상담결과가 '{new_result}'로 변경되었습니다!")
-                                    # TODO: Google Sheets 업데이트 코드 추가 필요
                         with col3:
                             st.write(f"**차트번호:** {chart_num}")
+                            
+                            # 현재 날짜 표시
+                            current_date = row['날짜']
+                            st.write(f"**현재 날짜:** {current_date}")
+                            
+                            # 날짜 수정하기
+                            st.write("**날짜 수정:**")
+                            date_obj = datetime.strptime(current_date, "%Y-%m-%d").date()
+                            new_date = st.date_input(
+                                "변경할 날짜", 
+                                value=date_obj,
+                                key=f"date_{idx}_{row['환자성함']}"
+                            )
+                        
+                        # 수정사항이 있으면 저장 버튼 표시
+                        has_changes = (new_result != current_result) or (new_date != date_obj)
+                        if has_changes:
+                            if st.button(f"✅ 저장", key=f"save_{idx}_{row['환자성함']}"):
+                                changes = []
+                                if new_result != current_result:
+                                    changes.append(f"상담결과: {current_result} → {new_result}")
+                                if new_date != date_obj:
+                                    changes.append(f"날짜: {current_date} → {new_date.strftime('%Y-%m-%d')}")
+                                
+                                st.success(f"✅ 변경 완료!\n" + "\n".join(changes))
+                                # TODO: Google Sheets 업데이트 코드 추가 필요
                         
                         st.markdown(f"**주요포인트:** {row['주요포인트']}")
                         st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
