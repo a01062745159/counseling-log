@@ -684,7 +684,11 @@ with tab_download:
                 
                 # 상담 보고 내용
                 st.subheader("📝 상담 보고 내용")
-                df_report_sorted = df_report.iloc[::-1]
+                # 날짜별 오름차순 + 비용 내림차순(높은순) 정렬
+                df_report_sorted = df_report.sort_values(
+                    by=['날짜', '금액'], 
+                    ascending=[True, False]
+                )
                 
                 for idx, row in df_report_sorted.iterrows():
                     with st.expander(
