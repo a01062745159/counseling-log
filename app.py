@@ -174,7 +174,7 @@ df = load_gsheet_data(conn)
 tabs_list = st.tabs([
     "📝 상담일지 작성", 
     "📞 미확정 리마인더", 
-    "🔍 상담일지 조회", 
+    "🔍 상담일지 수정", 
     "📊 보고 자료",
     "📥 자료 다운로드"
 ])
@@ -879,6 +879,3 @@ Total: {num_cases} cases
                 st.info("해당 기간에 상담 기록이 없습니다")
         else:
             st.info("데이터가 없습니다")
-    
-    elif report_password:
-        st.error("❌ 비밀번호가 틀렸습니다.")
