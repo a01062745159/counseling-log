@@ -690,22 +690,31 @@ with tab_download:
                     st.write(f"총 상담 건수: {len(df_report)}")
                     st.write(f"데이터프레임 컬럼: {df_report.columns.tolist()}")
                 
-                # 금액을 정수로 변환 (이미 숫자이므로)
+                # 금액을 정수로 변환 (숫자 형식 명확히)
                 df_report = df_report.copy()
-                df_report['금액_정렬용'] = pd.to_numeric(df_report['금액'], errors='coerce').fillna(0).astype(int)
                 
-                # 날짜별 오름차순 + 비용 내림차순(높은순) 정렬
-                df_report_sorted = df_report.sort_values(
-                    by=['날짜', '금액_정렬용'], 
-                    ascending=[True, False]
-                )
+                # 금액 변환 - 여러 방법으로 시도
+                df_report['금액_정렬용'] = df_report['금액'].apply(lambda x: int(float(str(x).replace(',', ''))) if pd.notnull(x) else 0)
                 
-                # 🔍 정렬 결과 확인 (디버깅)
-                with st.expander("🔍 정렬 결과 확인", expanded=False):
-                    st.write("**정렬된 상위 3건:**")
-                    for i in range(min(3, len(df_report_sorted))):
-                        row = df_report_sorted.iloc[i]
-                        st.write(f"{i+1}. {row['날짜']} - {row['환자성함']} - ₩{int(row['금액_정렬용']):,}")
+                # 🔍 **정렬 전 데이터 확인** (필수!)
+                st.warning("⚠️ **정렬 디버깅 정보**")
+                st.write(f"데이터 개수: {len(df_report)}")
+                st.write(f"샘플 데이터 (정렬 전 상위 3개):")
+                for i in range(min(3, len(df_report))):
+                    row = df_report.iloc[i]
+                    st.write(f"  {i+1}. {row['날짜']} | {row['환자성함']} | 금액: {row['금액']} → {row['금액_정렬용']}원")
+                
+                # **날짜로 먼저 그룹화, 각 그룹 내에서 금액 정렬**
+                df_report_sorted = df_report.sort_values(by=['날짜', '금액_정렬용'], ascending=[True, False]).reset_index(drop=True)
+                
+                # 🔍 **정렬 후 데이터 확인** (필수!)
+                st.success("✅ **정렬 완료!**")
+                st.write(f"정렬된 상위 3개 (높은순):")
+                for i in range(min(3, len(df_report_sorted))):
+                    row = df_report_sorted.iloc[i]
+                    st.write(f"  {i+1}. {row['날짜']} | {row['환자성함']} | **₩{row['금액_정렬용']:,}** ← 정렬용")
+                
+                st.divider()
                 
                 df_report_sorted = df_report_sorted.drop('금액_정렬용', axis=1)
                 
