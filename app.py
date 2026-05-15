@@ -342,7 +342,11 @@ with tab_report:
                 st.metric("📌 상담 건수", f"{len(df_tab2)}건")
                 st.divider()
                 
-                df_tab2 = df_tab2.iloc[::-1]
+                # 금액을 정수로 변환 후 정렬
+                df_tab2 = df_tab2.copy()
+                df_tab2['금액_정렬용'] = df_tab2['금액'].apply(lambda x: int(float(str(x).replace(',', ''))) if pd.notnull(x) else 0)
+                df_tab2 = df_tab2.sort_values(by=['날짜', '금액_정렬용'], ascending=[True, False])
+                df_tab2 = df_tab2.drop('금액_정렬용', axis=1)
                 
                 st.subheader("📝 상담내용 상세")
                 for idx, row in df_tab2.iterrows():
@@ -598,7 +602,11 @@ with tab_integrated:
             st.metric("📌 상담 건수", f"{len(df_report)}건")
             st.divider()
             
-            df_report = df_report.iloc[::-1]
+            # 금액을 정수로 변환 후 정렬
+            df_report = df_report.copy()
+            df_report['금액_정렬용'] = df_report['금액'].apply(lambda x: int(float(str(x).replace(',', ''))) if pd.notnull(x) else 0)
+            df_report = df_report.sort_values(by=['날짜', '금액_정렬용'], ascending=[True, False])
+            df_report = df_report.drop('금액_정렬용', axis=1)
             
             st.subheader("📝 상담내용 상세")
             for idx, row in df_report.iterrows():
