@@ -684,16 +684,30 @@ with tab_download:
                 
                 # 상담 보고 내용
                 st.subheader("📝 상담 보고 내용")
-                # 금액을 숫자로 변환 (특수문자 제거)
+                
+                # 🔍 디버깅용 정렬 정보 표시
+                with st.expander("🔍 정렬 디버깅 정보", expanded=False):
+                    st.write(f"총 상담 건수: {len(df_report)}")
+                    st.write(f"데이터프레임 컬럼: {df_report.columns.tolist()}")
+                
+                # 금액을 정수로 변환 (이미 숫자이므로)
                 df_report = df_report.copy()
-                df_report['금액_숫자'] = df_report['금액'].astype(str).str.replace('₩', '').str.replace(',', '').str.replace('원', '').str.strip()
-                df_report['금액_숫자'] = pd.to_numeric(df_report['금액_숫자'], errors='coerce').fillna(0).astype(int)
+                df_report['금액_정렬용'] = pd.to_numeric(df_report['금액'], errors='coerce').fillna(0).astype(int)
                 
                 # 날짜별 오름차순 + 비용 내림차순(높은순) 정렬
                 df_report_sorted = df_report.sort_values(
-                    by=['날짜', '금액_숫자'], 
+                    by=['날짜', '금액_정렬용'], 
                     ascending=[True, False]
-                ).drop('금액_숫자', axis=1)  # 정렬용 컬럼 제거
+                )
+                
+                # 🔍 정렬 결과 확인 (디버깅)
+                with st.expander("🔍 정렬 결과 확인", expanded=False):
+                    st.write("**정렬된 상위 3건:**")
+                    for i in range(min(3, len(df_report_sorted))):
+                        row = df_report_sorted.iloc[i]
+                        st.write(f"{i+1}. {row['날짜']} - {row['환자성함']} - ₩{int(row['금액_정렬용']):,}")
+                
+                df_report_sorted = df_report_sorted.drop('금액_정렬용', axis=1)
                 
                 for idx, row in df_report_sorted.iterrows():
                     with st.expander(
