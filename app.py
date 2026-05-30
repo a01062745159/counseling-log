@@ -718,6 +718,27 @@ with tab_statistics:
 
             st.divider()
 
+            # ===== 상담자별 동의율 =====
+            st.subheader("🎯 상담자별 동의율")
+            counselor_total = df_f['상담자'].value_counts()
+            counselor_confirmed = df_confirmed['상담자'].value_counts().reindex(counselor_total.index, fill_value=0)
+            agree_rate = (counselor_confirmed / counselor_total * 100).sort_values(ascending=False)
+            if not agree_rate.empty:
+                agree_df = pd.DataFrame({'상담자': agree_rate.index, '동의율': agree_rate.values})
+                fig_agree = px.bar(
+                    agree_df, x='상담자', y='동의율',
+                    title="상담자별 동의율 (확정 / 전체)",
+                    text='동의율', color='동의율',
+                    color_continuous_scale="Tealgrn"
+                )
+                fig_agree.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+                fig_agree.update_layout(showlegend=False, height=400, yaxis_range=[0, 105])
+                st.plotly_chart(fig_agree, use_container_width=True)
+            else:
+                st.info("동의율 데이터가 없습니다")
+
+            st.divider()
+
             # ===== 상담자별 확정 / 미확정 매출액 =====
             st.subheader("💰 상담자별 매출액 (확정 / 미확정)")
             col_c, col_d = st.columns(2)
@@ -751,6 +772,30 @@ with tab_statistics:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("미확정 매출 데이터가 없습니다")
+
+            st.divider()
+
+            # ===== 상담자별 확정 / 미확정 매출 비중 =====
+            st.subheader("📊 상담자별 확정 / 미확정 매출 비중")
+            total_sales = confirmed_sales.add(unconfirmed_sales, fill_value=0).sort_values(ascending=False)
+            counselors_with_sales = [c for c in total_sales.index if total_sales[c] > 0]
+            if counselors_with_sales:
+                ratio_rows = []
+                for c in counselors_with_sales:
+                    ratio_rows.append({'상담자': c, '구분': '확정', '매출액': int(confirmed_sales.get(c, 0))})
+                    ratio_rows.append({'상담자': c, '구분': '미확정', '매출액': int(unconfirmed_sales.get(c, 0))})
+                ratio_df = pd.DataFrame(ratio_rows)
+                fig_ratio = px.bar(
+                    ratio_df, x='상담자', y='매출액', color='구분',
+                    title="상담자별 확정/미확정 매출 비중 (100% 기준)",
+                    barnorm='percent', text_auto='.1f',
+                    color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
+                    category_orders={'상담자': counselors_with_sales}
+                )
+                fig_ratio.update_layout(height=400, yaxis_title='비중 (%)')
+                st.plotly_chart(fig_ratio, use_container_width=True)
+            else:
+                st.info("매출 비중 데이터가 없습니다")
 
             st.divider()
 
