@@ -49,17 +49,31 @@ def filter_by_date_range(df, start_date, end_date):
     end_str = end_date.strftime("%Y-%m-%d")
     return df[(df['날짜'] >= start_str) & (df['날짜'] <= end_str)].copy()
 
+def safe_parse_date(value):
+    """문자열 날짜를 date 객체로 안전하게 변환 (실패 시 None 반환)"""
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
 def load_gsheet_data(conn):
-    """Google Sheet에서 데이터 로드"""
+    """Google Sheet에서 데이터 로드 (컬럼 보정 + 날짜 정규화 포함)"""
+    expected = ["날짜", "상담자", "진단원장", "환자성함", "차트번호", "분류",
+                "상담결과", "금액", "주요포인트", "상담내용", "리콜상태"]
     try:
         df = conn.read(ttl="0s")
         df = df.dropna(subset=["환자성함"]).copy()
-        if '진단원장' not in df.columns:
-            df['진단원장'] = ''
-        if '리콜상태' not in df.columns:
-            df['리콜상태'] = '미리콜'
+        # 누락된 컬럼 보정 (KeyError 방지)
+        for col in expected:
+            if col not in df.columns:
+                df[col] = '미리콜' if col == '리콜상태' else ''
+        # 날짜를 항상 'YYYY-MM-DD' 문자열로 통일 (비교·파싱 오류 방지)
+        df['날짜'] = pd.to_datetime(df['날짜'], errors='coerce').dt.strftime('%Y-%m-%d')
+        df['날짜'] = df['날짜'].fillna('')
+        # 리콜상태 빈 값 보정
+        df['리콜상태'] = df['리콜상태'].fillna('미리콜').replace('', '미리콜')
         return df
-    except Exception as e:
+    except Exception:
         st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
         return pd.DataFrame()
 
@@ -182,12 +196,12 @@ tabs_list = st.tabs([
     "📈 통계"
 ])
 
-# 탭 변수 매핑
-tab_write = tabs_list[0]      # 상담일지 작성
-tab_reminder = tabs_list[1]   # 미확정 리마인더
-tab_report = tabs_list[2]     # 상담일지 수정
-tab_integrated = tabs_list[3] # 보고 자료
-tab_statistics = tabs_list[4] # 통계
+# 탭 변수 매핑 (변수명과 실제 탭이 다르므로 주의)
+tab_write = tabs_list[0]      # [1] 상담일지 작성
+tab_reminder = tabs_list[1]   # [2] 미확정 리마인더
+tab_report = tabs_list[2]     # [3] 상담일지 '수정'  (변수명 report 아님 주의)
+tab_integrated = tabs_list[3] # [4] '보고 자료'
+tab_statistics = tabs_list[4] # [5] 통계
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab_write:
@@ -275,10 +289,10 @@ with tab_write:
                     
                     st.divider()
                     
-                    # 오늘의 입력 내역
-                    st.subheader("📋 오늘의 입력 내역")
-                    today = datetime.now().date().strftime("%Y-%m-%d")
-                    today_data = updated_df[updated_df['날짜'] == today].copy()
+                    # 입력한 날짜의 내역
+                    st.subheader("📋 입력 날짜 내역")
+                    selected_day = input_date.strftime("%Y-%m-%d")
+                    today_data = updated_df[updated_df['날짜'] == selected_day].copy()
                     
                     if not today_data.empty:
                         today_data = today_data.iloc[::-1]
@@ -306,12 +320,7 @@ with tab_report:
     st.header("🔍 상담일지 조회")
     
     # 데이터 새로 읽기 (최신 데이터 가져오기)
-    try:
-        df_tab2_source = conn.read(ttl="0s")
-        df_tab2_source = df_tab2_source.dropna(subset=["환자성함"]).copy()
-    except Exception as e:
-        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-        df_tab2_source = pd.DataFrame()
+    df_tab2_source = load_gsheet_data(conn)
     
     
     if not df_tab2_source.empty:
@@ -362,7 +371,7 @@ with tab_report:
                             
                             # 날짜 수정하기
                             st.write("**날짜 수정:**")
-                            date_obj = datetime.strptime(current_date, "%Y-%m-%d").date()
+                            date_obj = safe_parse_date(current_date) or datetime.now().date()
                             new_date = st.date_input(
                                 "변경할 날짜", 
                                 value=date_obj,
@@ -379,8 +388,14 @@ with tab_report:
                                 if new_date != date_obj:
                                     changes.append(f"날짜: {current_date} → {new_date.strftime('%Y-%m-%d')}")
                                 
-                                st.success(f"✅ 변경 완료!\n" + "\n".join(changes))
-                                # TODO: Google Sheets 업데이트 코드 추가 필요
+                                try:
+                                    df_tab2_source.loc[idx, '상담결과'] = new_result
+                                    df_tab2_source.loc[idx, '날짜'] = new_date.strftime('%Y-%m-%d')
+                                    conn.update(data=df_tab2_source[EXPECTED_COLS])
+                                    st.success("✅ 변경사항이 저장되었습니다!\n" + "\n".join(changes))
+                                    st.rerun()
+                                except Exception:
+                                    st.error("❌ 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
                         
                         st.markdown(f"**주요포인트:** {row['주요포인트']}")
                         st.markdown(f"**상담내용:**\n\n{row['상담내용']}")
@@ -411,9 +426,10 @@ with tab_reminder:
         
         if not df_reminder.empty:
             today = datetime.now().date()
-            df_reminder['경과일'] = df_reminder['날짜'].apply(
-                lambda x: (today - datetime.strptime(x, "%Y-%m-%d").date()).days
-            )
+            def _elapsed_days(x):
+                d = safe_parse_date(x)
+                return (today - d).days if d else -1
+            df_reminder['경과일'] = df_reminder['날짜'].apply(_elapsed_days)
             df_reminder = df_reminder[df_reminder['경과일'] >= 7]
             
             if not df_reminder.empty:
@@ -502,16 +518,7 @@ with tab_integrated:
     st.header("📄 상담 보고")
     
     # 데이터 새로고침
-    try:
-        df_integrated = conn.read(ttl="0s")
-        df_integrated = df_integrated.dropna(subset=["환자성함"]).copy()
-        if '진단원장' not in df_integrated.columns:
-            df_integrated['진단원장'] = ''
-        if '리콜상태' not in df_integrated.columns:
-            df_integrated['리콜상태'] = '미리콜'
-    except Exception as e:
-        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-        df_integrated = pd.DataFrame()
+    df_integrated = load_gsheet_data(conn)
     
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -602,26 +609,15 @@ with tab_integrated:
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
 
-# ===== TAB 5: 통계 =====
+# ===== [5] 통계 (tab_statistics) =====
 with tab_statistics:
     st.header("📈 통계 분석")
-    
-    # 데이터 새로고침
-    try:
-        df_stats = conn.read(ttl="0s")
-        df_stats = df_stats.dropna(subset=["환자성함"]).copy()
-        if '진단원장' not in df_stats.columns:
-            df_stats['진단원장'] = ''
-        if '리콜상태' not in df_stats.columns:
-            df_stats['리콜상태'] = '미리콜'
-    except Exception as e:
-        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-        df_stats = pd.DataFrame()
-    
+
+    df_stats = load_gsheet_data(conn)
+
     if not df_stats.empty:
-        # 날짜 선택 옵션
+        # ----- 기간 선택 -----
         col1, col2, col3 = st.columns(3)
-        
         with col1:
             date_type = st.radio(
                 "📅 기간 선택",
@@ -629,7 +625,7 @@ with tab_statistics:
                 horizontal=True,
                 key="stats_date_type"
             )
-        
+
         if date_type == "월간":
             with col2:
                 selected_year = st.selectbox(
@@ -645,138 +641,167 @@ with tab_statistics:
                     index=datetime.now().month - 1,
                     key="stats_month"
                 )
-            
-            # 월간 데이터 필터링
             start_date_stats = datetime(selected_year, selected_month, 1).date()
             last_day = monthrange(selected_year, selected_month)[1]
             end_date_stats = datetime(selected_year, selected_month, last_day).date()
         else:
             with col2:
-                start_date_stats = st.date_input(
-                    "시작일",
-                    datetime.now().date(),
-                    key="stats_start"
-                )
+                start_date_stats = st.date_input("시작일", datetime.now().date(), key="stats_start")
             with col3:
-                end_date_stats = st.date_input(
-                    "종료일",
-                    datetime.now().date(),
-                    key="stats_end"
-                )
-        
-        # 날짜 필터링
+                end_date_stats = st.date_input("종료일", datetime.now().date(), key="stats_end")
+
+        # ----- 날짜 필터링 -----
         df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
-        
-        start_str = start_date_stats.strftime("%Y-%m-%d")
-        end_str = end_date_stats.strftime("%Y-%m-%d")
-        df_stats_filtered = df_stats[(df_stats['날짜'] >= start_str) & (df_stats['날짜'] <= end_str)].copy()
-        
-        if not df_stats_filtered.empty:
+        df_f = filter_by_date_range(df_stats, start_date_stats, end_date_stats)
+
+        if not df_f.empty:
             st.divider()
-            
-            # 1️⃣ 상담자별 상담 건수
-            st.subheader("📊 상담자별 상담 건수")
-            counselor_count = df_stats_filtered['상담자'].value_counts().sort_values(ascending=False)
-            
-            fig1 = px.bar(
-                x=counselor_count.index,
-                y=counselor_count.values,
-                labels={'x': '상담자', 'y': '상담 건수'},
-                title="상담자별 상담 건수",
-                text_auto=True,
-                color=counselor_count.values,
-                color_continuous_scale="Blues"
-            )
-            fig1.update_layout(showlegend=False, height=400)
-            st.plotly_chart(fig1, use_container_width=True)
-            
+
+            # ===== 요약 통계 =====
+            st.subheader("📊 요약 통계")
+            total_count = len(df_f)
+            total_amount = int(df_f['금액_숫자'].sum())
+            confirmed_count = len(df_f[df_f['상담결과'] == '확정'])
+            unconfirmed_count = len(df_f[df_f['상담결과'] == '미확정'])
+            agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+
+            c1, c2, c3, c4, c5 = st.columns(5)
+            with c1:
+                st.metric("📌 총 상담건수", f"{total_count}건")
+            with c2:
+                st.metric("💰 총 매출액", f"{total_amount:,}원")
+            with c3:
+                st.metric("✅ 확정건수", f"{confirmed_count}건")
+            with c4:
+                st.metric("❌ 미확정건수", f"{unconfirmed_count}건")
+            with c5:
+                st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
+
             st.divider()
-            
-            # 2️⃣ 상담자별 매출액
-            st.subheader("💰 상담자별 매출액")
-            counselor_sales = df_stats_filtered.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
-            
-            fig2 = px.bar(
-                x=counselor_sales.index,
-                y=counselor_sales.values,
-                labels={'x': '상담자', 'y': '매출액 (원)'},
-                title="상담자별 총 매출액",
-                text_auto=True,
-                color=counselor_sales.values,
-                color_continuous_scale="Greens"
-            )
-            fig2.update_layout(showlegend=False, height=400)
-            st.plotly_chart(fig2, use_container_width=True)
-            
+
+            df_confirmed = df_f[df_f['상담결과'] == '확정']
+            df_unconfirmed = df_f[df_f['상담결과'] == '미확정']
+
+            # ===== 상담자별 확정 / 미확정 상담 건수 =====
+            st.subheader("👥 상담자별 상담 건수 (확정 / 미확정)")
+            col_a, col_b = st.columns(2)
+
+            with col_a:
+                confirmed_cnt = df_confirmed['상담자'].value_counts().sort_values(ascending=False)
+                if not confirmed_cnt.empty:
+                    fig = px.bar(
+                        x=confirmed_cnt.index, y=confirmed_cnt.values,
+                        labels={'x': '상담자', 'y': '확정 건수'},
+                        title="상담자별 확정 상담 건수",
+                        text_auto=True, color=confirmed_cnt.values,
+                        color_continuous_scale="Blues"
+                    )
+                    fig.update_layout(showlegend=False, height=400)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("확정 상담 데이터가 없습니다")
+
+            with col_b:
+                unconfirmed_cnt = df_unconfirmed['상담자'].value_counts().sort_values(ascending=False)
+                if not unconfirmed_cnt.empty:
+                    fig = px.bar(
+                        x=unconfirmed_cnt.index, y=unconfirmed_cnt.values,
+                        labels={'x': '상담자', 'y': '미확정 건수'},
+                        title="상담자별 미확정 상담 건수",
+                        text_auto=True, color=unconfirmed_cnt.values,
+                        color_continuous_scale="Reds"
+                    )
+                    fig.update_layout(showlegend=False, height=400)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("미확정 상담 데이터가 없습니다")
+
             st.divider()
-            
-            # 3️⃣ 상담 결과 분포
+
+            # ===== 상담자별 확정 / 미확정 매출액 =====
+            st.subheader("💰 상담자별 매출액 (확정 / 미확정)")
+            col_c, col_d = st.columns(2)
+
+            with col_c:
+                confirmed_sales = df_confirmed.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
+                if not confirmed_sales.empty:
+                    fig = px.bar(
+                        x=confirmed_sales.index, y=confirmed_sales.values,
+                        labels={'x': '상담자', 'y': '확정 매출액 (원)'},
+                        title="상담자별 확정 상담 매출액",
+                        text_auto=True, color=confirmed_sales.values,
+                        color_continuous_scale="Blues"
+                    )
+                    fig.update_layout(showlegend=False, height=400)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("확정 매출 데이터가 없습니다")
+
+            with col_d:
+                unconfirmed_sales = df_unconfirmed.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
+                if not unconfirmed_sales.empty:
+                    fig = px.bar(
+                        x=unconfirmed_sales.index, y=unconfirmed_sales.values,
+                        labels={'x': '상담자', 'y': '미확정 매출액 (원)'},
+                        title="상담자별 미확정 상담 매출액",
+                        text_auto=True, color=unconfirmed_sales.values,
+                        color_continuous_scale="Reds"
+                    )
+                    fig.update_layout(showlegend=False, height=400)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("미확정 매출 데이터가 없습니다")
+
+            st.divider()
+
+            # ===== 상담 결과 분포 (원형 그래프) =====
             st.subheader("✅ 상담 결과 분포")
-            result_dist = df_stats_filtered['상담결과'].value_counts()
-            
-            fig3 = px.pie(
-                values=result_dist.values,
-                names=result_dist.index,
+            result_dist = df_f['상담결과'].value_counts()
+            fig_pie = px.pie(
+                values=result_dist.values, names=result_dist.index,
                 title="상담 결과 분포 (확정/미확정)",
+                color=result_dist.index,
                 color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
                 hole=0
             )
-            fig3.update_layout(height=400)
-            st.plotly_chart(fig3, use_container_width=True)
-            
+            fig_pie.update_layout(height=400)
+            st.plotly_chart(fig_pie, use_container_width=True)
+
             st.divider()
-            
-            # 4️⃣ 날짜별 상담 추이
-            st.subheader("📈 날짜별 상담 추이")
-            daily_count = df_stats_filtered.groupby('날짜').size().reset_index(name='상담건수')
-            
-            fig4 = px.line(
-                daily_count,
-                x='날짜',
-                y='상담건수',
-                title="날짜별 상담 건수 추이",
-                markers=True,
-                line_shape='linear'
+
+            # ===== 날짜별 상담 건수 추이 (꺾은선 그래프) =====
+            st.subheader("📈 날짜별 상담 건수 추이")
+            daily_count = df_f.groupby('날짜').size().reset_index(name='상담건수').sort_values('날짜')
+            fig_daily = px.line(
+                daily_count, x='날짜', y='상담건수',
+                title="날짜별 상담 건수 추이", markers=True, line_shape='linear'
             )
-            fig4.update_traces(line=dict(color='#3366cc', width=3), marker=dict(size=8))
-            fig4.update_layout(height=400, hovermode='x unified')
-            st.plotly_chart(fig4, use_container_width=True)
-            
+            fig_daily.update_traces(line=dict(color='#3366cc', width=3), marker=dict(size=8))
+            fig_daily.update_layout(height=400, hovermode='x unified')
+            st.plotly_chart(fig_daily, use_container_width=True)
+
             st.divider()
-            
-            # 5️⃣ 상담 결과별 매출액
-            st.subheader("💵 상담 결과별 매출액")
-            result_sales = df_stats_filtered.groupby('상담결과')['금액_숫자'].sum()
-            
-            fig5 = px.bar(
-                x=result_sales.index,
-                y=result_sales.values,
-                labels={'x': '상담결과', 'y': '매출액 (원)'},
-                title="상담 결과별 총 매출액",
-                text_auto=True,
-                color=result_sales.index,
-                color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'}
+
+            # ===== 요일별 상담 건수 추이 (꺾은선 그래프) =====
+            st.subheader("📅 요일별 상담 건수 추이")
+            dow = pd.to_datetime(df_f['날짜'], errors='coerce').dt.dayofweek
+            dow_count = (
+                dow.dropna().astype(int)
+                .value_counts()
+                .reindex(range(7), fill_value=0)
+                .sort_index()
             )
-            fig5.update_layout(showlegend=False, height=400)
-            st.plotly_chart(fig5, use_container_width=True)
-            
-            st.divider()
-            
-            # 📊 요약 통계
-            st.subheader("📊 요약 통계")
-            col1, col2, col3, col4, col5 = st.columns(5)
-            
-            with col1:
-                st.metric("📌 총 상담건수", f"{len(df_stats_filtered)}건")
-            with col2:
-                st.metric("💰 총 매출액", f"{int(df_stats_filtered['금액_숫자'].sum()):,}원")
-            with col3:
-                st.metric("✅ 확정건수", f"{len(df_stats_filtered[df_stats_filtered['상담결과'] == '확정'])}건")
-            with col4:
-                st.metric("❌ 미확정건수", f"{len(df_stats_filtered[df_stats_filtered['상담결과'] == '미확정'])}건")
-            with col5:
-                rate = (len(df_stats_filtered[df_stats_filtered['상담결과'] == '확정']) / len(df_stats_filtered) * 100) if len(df_stats_filtered) > 0 else 0
-                st.metric("🎯 동의율", f"{rate:.1f}%")
-        
+            weekday_labels = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
+            fig_dow = px.line(
+                x=weekday_labels, y=dow_count.values,
+                labels={'x': '요일', 'y': '상담건수'},
+                title="요일별 상담 건수 추이", markers=True, line_shape='linear'
+            )
+            fig_dow.update_traces(line=dict(color='#2ca02c', width=3), marker=dict(size=8))
+            fig_dow.update_layout(height=400, hovermode='x unified')
+            st.plotly_chart(fig_dow, use_container_width=True)
+
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
+    else:
+        st.info("데이터가 없습니다")
