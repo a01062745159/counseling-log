@@ -683,6 +683,8 @@ with tab_statistics:
             confirmed_count = len(df_f[df_f['상담결과'] == '확정'])
             unconfirmed_count = len(df_f[df_f['상담결과'] == '미확정'])
             agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+            confirmed_amount = int(df_f[df_f['상담결과'] == '확정']['금액_숫자'].sum())
+            unconfirmed_amount = int(df_f[df_f['상담결과'] == '미확정']['금액_숫자'].sum())
 
             c1, c2, c3, c4, c5 = st.columns(5)
             with c1:
@@ -695,6 +697,12 @@ with tab_statistics:
                 st.metric("❌ 미확정건수", f"{unconfirmed_count}건")
             with c5:
                 st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
+
+            ca1, ca2 = st.columns(2)
+            with ca1:
+                st.metric("✅ 확정 상담매출 총액", f"{confirmed_amount:,}원")
+            with ca2:
+                st.metric("❌ 미확정 상담매출 총액", f"{unconfirmed_amount:,}원")
 
             st.divider()
 
