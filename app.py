@@ -782,17 +782,22 @@ with tab_statistics:
             if counselors_with_sales:
                 ratio_rows = []
                 for c in counselors_with_sales:
-                    ratio_rows.append({'상담자': c, '구분': '확정', '매출액': int(confirmed_sales.get(c, 0))})
-                    ratio_rows.append({'상담자': c, '구분': '미확정', '매출액': int(unconfirmed_sales.get(c, 0))})
+                    conf = int(confirmed_sales.get(c, 0))
+                    unconf = int(unconfirmed_sales.get(c, 0))
+                    tot = conf + unconf
+                    ratio_rows.append({'상담자': c, '구분': '확정', '비중': conf / tot * 100, '매출액': conf})
+                    ratio_rows.append({'상담자': c, '구분': '미확정', '비중': unconf / tot * 100, '매출액': unconf})
                 ratio_df = pd.DataFrame(ratio_rows)
+                ratio_df['표시'] = ratio_df['비중'].map(lambda v: f"{v:.1f}%")
                 fig_ratio = px.bar(
-                    ratio_df, x='상담자', y='매출액', color='구분',
+                    ratio_df, x='상담자', y='비중', color='구분',
                     title="상담자별 확정/미확정 매출 비중 (100% 기준)",
-                    barnorm='percent', text_auto='.1f',
+                    text='표시',
                     color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
                     category_orders={'상담자': counselors_with_sales}
                 )
-                fig_ratio.update_layout(height=400, yaxis_title='비중 (%)')
+                fig_ratio.update_traces(textposition='inside')
+                fig_ratio.update_layout(height=400, yaxis_title='비중 (%)', barmode='stack')
                 st.plotly_chart(fig_ratio, use_container_width=True)
             else:
                 st.info("매출 비중 데이터가 없습니다")
