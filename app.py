@@ -613,6 +613,25 @@ with tab_integrated:
 with tab_statistics:
     st.header("📈 통계 분석")
 
+    # ===== 🔒 통계 탭 비밀번호 게이트 =====
+    if "stats_unlocked" not in st.session_state:
+        st.session_state.stats_unlocked = False
+
+    if not st.session_state.stats_unlocked:
+        st.warning("🔒 이 탭은 비밀번호 입력 후 확인할 수 있습니다.")
+        col_pw1, col_pw2, col_pw3 = st.columns([1, 2, 1])
+        with col_pw2:
+            with st.form("stats_password_form"):
+                stats_pw = st.text_input("🔑 비밀번호", type="password", placeholder="비밀번호 입력")
+                stats_submit = st.form_submit_button("🔓 확인", use_container_width=True)
+                if stats_submit:
+                    if stats_pw == "1103":
+                        st.session_state.stats_unlocked = True
+                        st.rerun()
+                    else:
+                        st.error("❌ 비밀번호가 틀렸습니다. 다시 입력해주세요.")
+        st.stop()
+
     df_stats = load_gsheet_data(conn)
 
     if not df_stats.empty:
