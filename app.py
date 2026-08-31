@@ -736,6 +736,22 @@ with tab_summary:
 
             st.divider()
 
+            # ===== 🤖 AI 하루/기간 요약 (캡처 대신 공유용 텍스트) =====
+            st.subheader("🤖 AI 보고 요약")
+            if st.button("🤖 이 기간 보고 요약 만들기", key="summary_ai_button"):
+                with st.spinner("AI가 보고 내용을 작성하는 중..."):
+                    counselor_label = selected_counselor_summary if selected_counselor_summary != "전체" else "전체 상담자"
+                    ai_report_text = generate_period_report_summary(
+                        df_report, stats_summary, start_str, end_str, counselor_label
+                    )
+                if ai_report_text:
+                    st.session_state["summary_ai_report_text"] = ai_report_text
+
+            if st.session_state.get("summary_ai_report_text"):
+                st.code(st.session_state["summary_ai_report_text"], language=None, wrap_lines=True)
+
+            st.divider()
+
             if selected_counselor_summary == "전체":
                 st.subheader("👥 상담자별 매출 및 성과")
                 counselor_sales_df = get_counselor_stats(df_report, COUNSELORS)
@@ -770,24 +786,6 @@ with tab_summary:
                 file_name=f"상담보고_{start_str}_{end_str}.csv",
                 mime="text/csv"
             )
-
-            st.divider()
-
-            # ===== 🤖 AI 하루/기간 요약 (캡처 대신 공유용 텍스트) =====
-            st.subheader("🤖 AI 보고 요약")
-            st.caption("캡처 대신 카카오톡/단톡방에 바로 붙여넣을 수 있는 요약 텍스트를 만들어줍니다.")
-            if st.button("🤖 이 기간 보고 요약 만들기", key="summary_ai_button"):
-                with st.spinner("AI가 보고 내용을 작성하는 중..."):
-                    counselor_label = selected_counselor_summary if selected_counselor_summary != "전체" else "전체 상담자"
-                    ai_report_text = generate_period_report_summary(
-                        df_report, stats_summary, start_str, end_str, counselor_label
-                    )
-                if ai_report_text:
-                    st.session_state["summary_ai_report_text"] = ai_report_text
-
-            if st.session_state.get("summary_ai_report_text"):
-                st.write("**생성된 보고 요약** (박스에 마우스를 올리면 오른쪽 위에 복사 아이콘이 나타나요. 클릭 한 번으로 전체 복사됩니다)")
-                st.code(st.session_state["summary_ai_report_text"], language=None, wrap_lines=True)
 
             st.divider()
 
