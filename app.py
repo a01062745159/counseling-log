@@ -11,7 +11,8 @@ import plotly.graph_objects as go
 from calendar import monthrange
 
 # AI 요약에 사용할 모델. 나중에 더 저렴하거나 좋은 모델이 나오면 이 값만 바꾸면 됩니다.
-AI_SUMMARY_MODEL = "claude-3-5-haiku-latest"
+# (Claude Console 대시보드의 "모델" 카드에 있는 이름과 맞춰서 씁니다. 예: Haiku 4.5 → claude-haiku-4-5)
+AI_SUMMARY_MODEL = "claude-haiku-4-5"
 
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
@@ -177,8 +178,65 @@ def summarize_consultation(content: str) -> str:
             }]
         )
         return message.content[0].text.strip()
-    except Exception:
+    except Exception as e:
         st.error("❌ AI 요약 중 오류가 발생했습니다. API 키가 올바른지, 사용량 한도를 확인해주세요.")
+        with st.expander("오류 자세히 보기 (문제 파악용)"):
+            st.code(str(e))
+        return ""
+
+
+def generate_period_report_summary(df_period, stats, start_str, end_str, counselor_label, max_rows=80) -> str:
+    """선택된 기간의 통계 + 상담 내역을 AI에게 넘겨서, 캡처 대신 공유할 수 있는
+    자연스러운 한국어 문단 형태의 하루/기간 보고 요약을 생성합니다."""
+    client = get_ai_client()
+    if client is None:
+        st.error("❌ AI 요약 기능을 쓰려면 secrets.toml에 [ai] anthropic_api_key 설정이 필요합니다.")
+        return ""
+
+    counselor_lines = []
+    for counselor in COUNSELORS:
+        c_data = df_period[df_period['상담자'] == counselor]
+        if c_data.empty:
+            continue
+        confirmed = len(c_data[c_data['상담결과'] == '확정'])
+        unconfirmed = len(c_data[c_data['상담결과'] == '미확정'])
+        confirmed_amt = int(c_data[c_data['상담결과'] == '확정']['금액_숫자'].sum())
+        counselor_lines.append(f"- {counselor}: 확정 {confirmed}건 / 미확정 {unconfirmed}건, 확정매출 {confirmed_amt:,}원")
+
+    case_lines = []
+    for _, row in df_period.iterrows():
+        case_lines.append(
+            f"- [{row['상담결과']}] {row['환자성함']} ({row['상담자']}, {row['분류']}, {format_amount(row['금액']):,}원): {row['주요포인트'] or row['상담내용'][:60]}"
+        )
+    truncated_note = ""
+    if len(case_lines) > max_rows:
+        truncated_note = f"\n(전체 {len(case_lines)}건 중 {max_rows}건만 표시됨)"
+        case_lines = case_lines[:max_rows]
+
+    prompt = (
+        f"너는 치과 상담실장들을 대신해서 원장님/단톡방에 공유할 상담 보고를 작성하는 도우미야.\n"
+        f"기간: {start_str} ~ {end_str} / 대상 상담자: {counselor_label}\n\n"
+        f"[요약 통계]\n"
+        f"총 상담 {stats['total_count']}건, 확정 {stats['confirmed_count']}건({stats['confirmed_amount']:,}원), "
+        f"미확정 {stats['unconfirmed_count']}건({stats['unconfirmed_amount']:,}원), 동의율 {stats['agreement_rate']:.1f}%\n\n"
+        f"[상담자별 실적]\n" + ("\n".join(counselor_lines) if counselor_lines else "(데이터 없음") + "\n\n"
+        f"[상담 내역]\n" + ("\n".join(case_lines) if case_lines else "(데이터 없음)") + truncated_note + "\n\n"
+        "위 내용을 바탕으로 카카오톡 단톡방에 바로 붙여넣을 수 있는 하루/기간 상담 보고를 작성해줘. "
+        "숫자(건수, 금액, 동의율)는 정확히 인용하고, 눈에 띄는 상담(고액 확정, 특이 미확정 사유 등)이 있으면 짧게 짚어줘. "
+        "너무 딱딱하지 않게, 5~8문장 정도의 자연스러운 한국어 문단(또는 짧은 항목 나열)으로 써줘. 서론 없이 보고 내용부터 바로 시작해줘."
+    )
+
+    try:
+        message = client.messages.create(
+            model=AI_SUMMARY_MODEL,
+            max_tokens=500,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return message.content[0].text.strip()
+    except Exception as e:
+        st.error("❌ AI 요약 중 오류가 발생했습니다. API 키가 올바른지, 사용량 한도를 확인해주세요.")
+        with st.expander("오류 자세히 보기 (문제 파악용)"):
+            st.code(str(e))
         return ""
 
 
@@ -708,6 +766,29 @@ with tab_summary:
                 file_name=f"상담보고_{start_str}_{end_str}.csv",
                 mime="text/csv"
             )
+
+            st.divider()
+
+            # ===== 🤖 AI 하루/기간 요약 (캡처 대신 공유용 텍스트) =====
+            st.subheader("🤖 AI 보고 요약")
+            st.caption("캡처 대신 카카오톡/단톡방에 바로 붙여넣을 수 있는 요약 텍스트를 만들어줍니다.")
+            if st.button("🤖 이 기간 보고 요약 만들기", key="summary_ai_button"):
+                with st.spinner("AI가 보고 내용을 작성하는 중..."):
+                    counselor_label = selected_counselor_summary if selected_counselor_summary != "전체" else "전체 상담자"
+                    ai_report_text = generate_period_report_summary(
+                        df_report, stats_summary, start_str, end_str, counselor_label
+                    )
+                if ai_report_text:
+                    st.session_state["summary_ai_report_text"] = ai_report_text
+                    st.session_state.pop("summary_ai_report_display", None)  # 텍스트 영역이 새 내용으로 갱신되도록
+
+            if st.session_state.get("summary_ai_report_text"):
+                st.text_area(
+                    "생성된 보고 요약 (전체 선택 후 복사해서 붙여넣으세요)",
+                    value=st.session_state["summary_ai_report_text"],
+                    height=220,
+                    key="summary_ai_report_display"
+                )
 
             st.divider()
 
