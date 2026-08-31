@@ -794,12 +794,6 @@ with tab_summary:
             df_report_sorted = df_report.sort_values(['날짜', '금액_숫자'], ascending=[True, False])
 
             st.subheader("📝 상담내용 상세")
-            # 개요 표를 먼저 보여주고, 상세는 아래 expander에서 확인 (건수가 많을 때 화면이 무거워지는 것 방지)
-            overview_df = df_report_sorted[['날짜', '환자성함', '차트번호', '상담자', '분류', '상담결과', '금액']].copy()
-            overview_df['차트번호'] = overview_df['차트번호'].apply(format_chart_no)
-            overview_df['금액'] = overview_df['금액'].apply(lambda v: f"{format_amount(v):,}원")
-            st.dataframe(overview_df, use_container_width=True, hide_index=True)
-
             for idx, row in df_report_sorted.iterrows():
                 with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
                     render_consultation_detail(row, key_prefix=f"summary_{idx}")
