@@ -231,7 +231,7 @@ def generate_period_report_summary(df_period, stats, start_str, end_str, counsel
     try:
         message = client.messages.create(
             model=AI_SUMMARY_MODEL,
-            max_tokens=500,
+            max_tokens=1500,
             messages=[{"role": "user", "content": prompt}]
         )
         return message.content[0].text.strip()
