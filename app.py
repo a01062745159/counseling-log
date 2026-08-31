@@ -407,9 +407,11 @@ with tab_write:
     amount = st.number_input("💰 금액 (원)", min_value=0, step=10000, format="%d", key="tab1_amount")
     content = st.text_area("💬 상세 상담 내용", height=150, key="tab1_content")
 
+    # ⚠️ 주의: "주요 포인트" 입력창(tab1_points)의 값을 AI 버튼에서 바꿔야 하므로,
+    # 반드시 버튼 로직(col_ai)을 먼저 처리하고 입력창(col_points)을 그 다음에 그려야 합니다.
+    # (Streamlit은 이미 이번 실행에서 그려진 입력창의 값을 코드로 나중에 바꾸는 것을 허용하지 않습니다.
+    #  화면에 보이는 좌우 위치는 코드 순서와 무관하게 col_points가 항상 왼쪽에 표시됩니다.)
     col_points, col_ai = st.columns([4, 1])
-    with col_points:
-        points = st.text_input("📍 주요 포인트", key="tab1_points")
     with col_ai:
         st.write("")
         if st.button("🤖 AI 요약", use_container_width=True, help="상세 상담 내용을 바탕으로 주요 포인트를 자동으로 채워줍니다"):
@@ -421,6 +423,8 @@ with tab_write:
                 if summary:
                     st.session_state["tab1_points"] = summary
                     st.rerun()
+    with col_points:
+        points = st.text_input("📍 주요 포인트", key="tab1_points")
 
     submitted = st.button("💾 저장하기", use_container_width=True)
 
