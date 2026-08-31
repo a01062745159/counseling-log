@@ -1,6 +1,7 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
+from anthropic import Anthropic
 import pandas as pd
 from datetime import datetime, timedelta
 import re
@@ -8,6 +9,9 @@ import uuid
 import plotly.express as px
 import plotly.graph_objects as go
 from calendar import monthrange
+
+# AI 요약에 사용할 모델. 나중에 더 저렴하거나 좋은 모델이 나오면 이 값만 바꾸면 됩니다.
+AI_SUMMARY_MODEL = "claude-3-5-haiku-latest"
 
 st.set_page_config(page_title="수려한치과 상담일지", layout="wide")
 
@@ -140,6 +144,43 @@ def get_counselor_stats(df, counselors):
     result_df = result_df.drop('확정매출_숫자', axis=1)
 
     return result_df.reset_index(drop=True)
+
+@st.cache_resource(show_spinner=False)
+def get_ai_client():
+    """secrets.toml의 [ai] anthropic_api_key로 AI 클라이언트를 만듭니다. 키가 없으면 None 반환."""
+    try:
+        api_key = st.secrets["ai"]["anthropic_api_key"]
+    except Exception:
+        return None
+    if not api_key:
+        return None
+    return Anthropic(api_key=api_key)
+
+
+def summarize_consultation(content: str) -> str:
+    """상세 상담 내용을 AI로 짧게 요약해서 '주요 포인트'용 문장을 만들어줍니다."""
+    client = get_ai_client()
+    if client is None:
+        st.error("❌ AI 요약 기능을 쓰려면 secrets.toml에 [ai] anthropic_api_key 설정이 필요합니다.")
+        return ""
+    try:
+        message = client.messages.create(
+            model=AI_SUMMARY_MODEL,
+            max_tokens=150,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "다음은 치과 상담 내용입니다. 상담일지의 '주요 포인트' 칸에 들어갈 수 있도록, "
+                    "핵심만 한국어로 한두 문장, 최대한 짧게 요약해줘. 서론이나 설명 없이 요약 문장만 출력해줘.\n\n"
+                    f"{content}"
+                )
+            }]
+        )
+        return message.content[0].text.strip()
+    except Exception:
+        st.error("❌ AI 요약 중 오류가 발생했습니다. API 키가 올바른지, 사용량 한도를 확인해주세요.")
+        return ""
+
 
 def render_consultation_detail(row, key_prefix):
     """상담 상세 내용을 보여주는 공통 렌더링 함수 (조회/보고 탭에서 중복 제거)"""
@@ -284,33 +325,46 @@ tab_statistics = tabs_list[4] # 통계
 with tab_write:
     st.header("📝 상담일지 작성")
 
-    with st.form("write_form", clear_on_submit=True):
-        col_date = st.columns([3, 1])[1]
-        with col_date:
-            today = datetime.now().date()
-            input_date = st.date_input("📅 입력 날짜", today, key="tab1_date")
+    col_date = st.columns([3, 1])[1]
+    with col_date:
+        today = datetime.now().date()
+        input_date = st.date_input("📅 입력 날짜", today, key="tab1_date")
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            consultant = st.selectbox("👤 담당 상담자", [None] + COUNSELORS, format_func=lambda x: "선택하세요" if x is None else x, key="tab1_counselor")
-        with col2:
-            doctor = st.selectbox("👨‍⚕️ 진단 원장님", [None] + DOCTORS, format_func=lambda x: "선택하세요" if x is None else x, key="tab1_doctor")
-        with col3:
-            result = st.selectbox("📢 결과", [None, "미확정", "확정"], format_func=lambda x: "선택하세요" if x is None else x, key="tab1_result")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        consultant = st.selectbox("👤 담당 상담자", [None] + COUNSELORS, format_func=lambda x: "선택하세요" if x is None else x, key="tab1_counselor")
+    with col2:
+        doctor = st.selectbox("👨‍⚕️ 진단 원장님", [None] + DOCTORS, format_func=lambda x: "선택하세요" if x is None else x, key="tab1_doctor")
+    with col3:
+        result = st.selectbox("📢 결과", [None, "미확정", "확정"], format_func=lambda x: "선택하세요" if x is None else x, key="tab1_result")
 
-        col3, col4, col5 = st.columns(3)
-        with col3:
-            category = st.selectbox("🏥 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"], key="tab1_category")
-        with col4:
-            name = st.text_input("👤 환자 성함", key="tab1_name")
-        with col5:
-            chart_no = st.text_input("🔢 차트 번호", key="tab1_chart")
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        category = st.selectbox("🏥 분류", ["예약 신환", "미예약 신환", "예약 구환", "미예약 구환"], key="tab1_category")
+    with col4:
+        name = st.text_input("👤 환자 성함", key="tab1_name")
+    with col5:
+        chart_no = st.text_input("🔢 차트 번호", key="tab1_chart")
 
-        amount = st.number_input("💰 금액 (원)", min_value=0, step=10000, format="%d", key="tab1_amount")
+    amount = st.number_input("💰 금액 (원)", min_value=0, step=10000, format="%d", key="tab1_amount")
+    content = st.text_area("💬 상세 상담 내용", height=150, key="tab1_content")
+
+    col_points, col_ai = st.columns([4, 1])
+    with col_points:
         points = st.text_input("📍 주요 포인트", key="tab1_points")
-        content = st.text_area("💬 상세 상담 내용", height=150, key="tab1_content")
+    with col_ai:
+        st.write("")
+        if st.button("🤖 AI 요약", use_container_width=True, help="상세 상담 내용을 바탕으로 주요 포인트를 자동으로 채워줍니다"):
+            if not content or not content.strip():
+                st.warning("먼저 상세 상담 내용을 입력해주세요.")
+            else:
+                with st.spinner("AI가 요약하는 중..."):
+                    summary = summarize_consultation(content)
+                if summary:
+                    st.session_state["tab1_points"] = summary
+                    st.rerun()
 
-        submitted = st.form_submit_button("💾 저장하기", use_container_width=True)
+    submitted = st.button("💾 저장하기", use_container_width=True)
 
     if submitted:
         if not name:
@@ -378,7 +432,13 @@ with tab_write:
                             render_consultation_detail(row, key_prefix=f"just_saved_{idx}")
 
                 st.divider()
-                st.info("✏️ 저장이 완료되면 입력칸은 자동으로 초기화됩니다")
+                st.info("✏️ 다음 항목을 입력하기 시작하시면 위 입력칸들은 자동으로 초기화됩니다")
+
+                # 다음 입력을 위해 폼 내용 초기화 (위젯 키를 지우면 다음 렌더링에서 빈 값으로 다시 시작함)
+                for k in ["tab1_name", "tab1_chart", "tab1_points", "tab1_content",
+                          "tab1_counselor", "tab1_doctor", "tab1_result"]:
+                    st.session_state.pop(k, None)
+                st.session_state["tab1_amount"] = 0
             except Exception:
                 st.error("❌ 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
 
