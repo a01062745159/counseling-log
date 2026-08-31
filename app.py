@@ -660,10 +660,9 @@ with tab_summary:
             overview_df['금액'] = overview_df['금액'].apply(lambda v: f"{format_amount(v):,}원")
             st.dataframe(overview_df, use_container_width=True, hide_index=True)
 
-            with st.expander(f"📂 상담 상세 전체 펼쳐보기 ({len(df_report_sorted)}건)", expanded=False):
-                for idx, row in df_report_sorted.iterrows():
-                    with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=False):
-                        render_consultation_detail(row, key_prefix=f"summary_{idx}")
+            for idx, row in df_report_sorted.iterrows():
+                with st.expander(f"📌 {row['날짜']} - {row['환자성함']} (차트: {format_chart_no(row['차트번호'])}) - {row['상담자']}", expanded=True):
+                    render_consultation_detail(row, key_prefix=f"summary_{idx}")
         else:
             st.info("해당 기간에 상담 기록이 없습니다")
 
