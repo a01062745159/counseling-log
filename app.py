@@ -784,15 +784,10 @@ with tab_summary:
                     )
                 if ai_report_text:
                     st.session_state["summary_ai_report_text"] = ai_report_text
-                    st.session_state.pop("summary_ai_report_display", None)  # 텍스트 영역이 새 내용으로 갱신되도록
 
             if st.session_state.get("summary_ai_report_text"):
-                st.text_area(
-                    "생성된 보고 요약 (전체 선택 후 복사해서 붙여넣으세요)",
-                    value=st.session_state["summary_ai_report_text"],
-                    height=220,
-                    key="summary_ai_report_display"
-                )
+                st.write("**생성된 보고 요약** (박스에 마우스를 올리면 오른쪽 위에 복사 아이콘이 나타나요. 클릭 한 번으로 전체 복사됩니다)")
+                st.code(st.session_state["summary_ai_report_text"], language=None, wrap_lines=True)
 
             st.divider()
 
