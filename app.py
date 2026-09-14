@@ -906,7 +906,16 @@ with tab_summary:
                 unresolved = df_complaints_period[df_complaints_period['처리상태'] != '완료'].sort_values('날짜')
                 if not unresolved.empty:
                     st.write(f"**🔔 아직 처리되지 않은 컴플레인 ({len(unresolved)}건)**")
+
+                    # 담당자별로 "확인이 필요한 사람"을 직관적으로 표시
+                    staff_series = unresolved['담당자'].replace('', '담당자 미지정')
+                    staff_series = staff_series.where(staff_series.notna(), '담당자 미지정')
+                    staff_counts = staff_series.value_counts()
+                    staff_lines = [f"👤 **{name}**: {cnt}건" for name, cnt in staff_counts.items()]
+                    st.warning("**⚠️ 확인 필요한 담당자**\n\n" + "  \n".join(staff_lines))
+
                     unresolved_view = unresolved[['날짜', '환자성함', '유형', '담당자', '처리상태']].copy()
+                    unresolved_view['담당자'] = unresolved_view['담당자'].replace('', '담당자 미지정')
                     st.dataframe(unresolved_view, use_container_width=True, hide_index=True)
 
             st.divider()
