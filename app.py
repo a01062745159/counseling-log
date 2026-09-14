@@ -46,6 +46,16 @@ SPREADSHEET_HEADER = [
 COUNSELORS = ["오용성 실장", "서해 실장", "김지향 과장", "박승미 과장", "배지윤 팀장", "최수진 팀장"]
 DOCTORS = ["안정선 대표원장", "김동현 대표원장", "이성재 수석원장", "박지호 원장", "신효담 원장", "구다솜 원장", "조수빈 원장", "조형준 원장", "강순영 원장(교정)", "윤소정 원장(교정)"]
 
+# ===== ⚠️ 컴플레인 관리용 시트 컬럼/옵션 =====
+# 같은 Google Sheets 파일 안에 "컴플레인"이라는 새 시트(탭)를 만들어서 별도로 관리합니다.
+COMPLAINT_HEADER = [
+    "고유ID", "날짜", "환자성함", "차트번호", "담당자", "유형",
+    "상세내용", "처리상태", "처리내용", "처리일", "기록자", "처리자"
+]
+COMPLAINT_STAFF_OPTIONS = COUNSELORS + DOCTORS
+COMPLAINT_TYPES = ["진료결과", "응대", "비용", "대기시간", "예약", "기타"]
+COMPLAINT_STATUSES = ["접수", "처리중", "완료"]
+
 # ===== 📋 Helper Functions (반복 코드 제거) =====
 def format_amount(value):
     """금액을 정수로 변환"""
@@ -266,16 +276,39 @@ def render_consultation_detail(row, key_prefix):
 # (기존 방식은 전체 시트를 읽어서 통째로 다시 쓰는 방식이라 동시 저장 시 유실 위험이 있었습니다)
 
 @st.cache_resource(show_spinner=False)
-def get_worksheet():
-    """서비스 계정 인증으로 워크시트 객체를 가져옵니다. secrets.toml의 [connections.gsheets]를
+def get_spreadsheet():
+    """서비스 계정 인증으로 스프레드시트 전체 객체를 가져옵니다. secrets.toml의 [connections.gsheets]를
     그대로 사용하므로 기존 secrets 설정을 바꿀 필요는 없습니다."""
     gs_secrets = dict(st.secrets["connections"]["gsheets"])
     spreadsheet_url = gs_secrets.pop("spreadsheet")
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(gs_secrets, scopes=scopes)
     gc = gspread.authorize(creds)
-    sh = gc.open_by_url(spreadsheet_url)
-    return sh.sheet1
+    return gc.open_by_url(spreadsheet_url)
+
+
+@st.cache_resource(show_spinner=False)
+def get_worksheet():
+    """상담일지 데이터가 있는 기본 시트(첫 번째 탭)."""
+    return get_spreadsheet().sheet1
+
+
+@st.cache_resource(show_spinner=False)
+def get_complaint_worksheet():
+    """컴플레인 기록용 시트. "컴플레인"이라는 이름의 탭이 없으면 자동으로 새로 만듭니다.
+    이미 있는데 컬럼이 나중에 추가된 경우(예: 기록자/처리자), 기존 데이터는 그대로 두고
+    새 컬럼만 헤더 오른쪽 끝에 자동으로 추가합니다."""
+    sh = get_spreadsheet()
+    try:
+        ws = sh.worksheet("컴플레인")
+        existing_header = ws.row_values(1)
+        missing_cols = [c for c in COMPLAINT_HEADER if c not in existing_header]
+        if missing_cols:
+            ws.update('A1', [existing_header + missing_cols])
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet(title="컴플레인", rows=2000, cols=len(COMPLAINT_HEADER))
+        ws.append_row(COMPLAINT_HEADER, value_input_option="USER_ENTERED")
+    return ws
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -305,27 +338,74 @@ def load_gsheet_data(_ws):
         return pd.DataFrame(columns=SPREADSHEET_HEADER)
 
 
-def append_record(ws, record: dict):
-    """새 상담 기록을 시트 맨 끝에 한 행만 추가 (기존 행은 전혀 건드리지 않음)"""
-    row = [str(record.get(col, "")) for col in SPREADSHEET_HEADER]
+def append_row_generic(ws, record: dict, header: list):
+    """레코드 한 개를 시트 맨 끝에 한 행만 추가 (기존 행은 전혀 건드리지 않음)"""
+    row = [str(record.get(col, "")) for col in header]
     ws.append_row(row, value_input_option="USER_ENTERED")
 
 
-def update_record_fields(ws, unique_id: str, updates: dict) -> bool:
+def update_fields_generic(ws, unique_id: str, updates: dict, header: list) -> bool:
     """고유ID로 해당 행을 찾아 지정한 컬럼(들)만 정확히 수정. 다른 행/컬럼은 건드리지 않음."""
     if not unique_id:
         return False
     try:
-        id_col_num = SPREADSHEET_HEADER.index("고유ID") + 1
+        id_col_num = header.index("고유ID") + 1
         cell = ws.find(unique_id, in_column=id_col_num)
     except Exception:
         cell = None
     if cell is None:
         return False
     for col_name, value in updates.items():
-        col_num = SPREADSHEET_HEADER.index(col_name) + 1
+        col_num = header.index(col_name) + 1
         ws.update_cell(cell.row, col_num, str(value))
     return True
+
+
+def append_record(ws, record: dict):
+    """상담일지 시트에 새 기록 추가"""
+    append_row_generic(ws, record, SPREADSHEET_HEADER)
+
+
+def update_record_fields(ws, unique_id: str, updates: dict) -> bool:
+    """상담일지 시트에서 지정한 컬럼(들)만 수정"""
+    return update_fields_generic(ws, unique_id, updates, SPREADSHEET_HEADER)
+
+
+def append_complaint(ws, record: dict):
+    """컴플레인 시트에 새 기록 추가"""
+    append_row_generic(ws, record, COMPLAINT_HEADER)
+
+
+def update_complaint_fields(ws, unique_id: str, updates: dict) -> bool:
+    """컴플레인 시트에서 지정한 컬럼(들)만 수정"""
+    return update_fields_generic(ws, unique_id, updates, COMPLAINT_HEADER)
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_complaint_data(_ws):
+    """컴플레인 시트에서 데이터 로드 (30초 캐시, 저장/수정 직후에는 캐시를 즉시 비워서 최신 상태를 보여줍니다)"""
+    try:
+        records = _ws.get_all_records()
+        df = pd.DataFrame(records)
+        if df.empty:
+            return pd.DataFrame(columns=COMPLAINT_HEADER)
+
+        for col in COMPLAINT_HEADER:
+            if col not in df.columns:
+                df[col] = '접수' if col == '처리상태' else ''
+
+        df = df.dropna(subset=["환자성함"]).copy()
+        df = df[df['환자성함'].astype(str).str.strip() != ''].copy()
+
+        df['날짜'] = pd.to_datetime(df['날짜'], errors='coerce').dt.strftime('%Y-%m-%d')
+        df['날짜'] = df['날짜'].fillna('')
+        df['처리상태'] = df['처리상태'].replace('', '접수')
+        df['고유ID'] = df['고유ID'].astype(str).replace('nan', '')
+
+        return df
+    except Exception:
+        st.warning("⚠️ Google Sheets 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        return pd.DataFrame(columns=COMPLAINT_HEADER)
 
 
 # ===== 🔒 로그인 기능 (기존 방식 유지) =====
@@ -372,7 +452,8 @@ tabs_list = st.tabs([
     "📞 미확정 리마인더",
     "🔍 상담일지 조회/수정",
     "📊 보고 자료",
-    "📈 통계"
+    "📈 통계",
+    "⚠️ 컴플레인 관리"
 ])
 
 tab_write = tabs_list[0]      # 상담일지 작성
@@ -380,6 +461,7 @@ tab_reminder = tabs_list[1]   # 미확정 리마인더
 tab_edit = tabs_list[2]       # 상담일지 조회/수정 (구 tab_report - 이름을 실제 용도에 맞게 변경)
 tab_summary = tabs_list[3]    # 보고 자료 (구 tab_integrated - 이름을 실제 용도에 맞게 변경)
 tab_statistics = tabs_list[4] # 통계
+tab_complaint = tabs_list[5]  # 컴플레인 관리
 
 # ===== TAB 1: 상담일지 작성 =====
 with tab_write:
@@ -777,6 +859,58 @@ with tab_summary:
             st.dataframe(category_result_df, use_container_width=True, hide_index=True)
 
             st.divider()
+
+            # ===== ⚠️ 컴플레인 현황 (위에서 선택한 기간/상담자 기준) =====
+            st.subheader("⚠️ 컴플레인 현황")
+            complaint_ws_summary = get_complaint_worksheet()
+            df_complaints_summary = load_complaint_data(complaint_ws_summary)
+
+            if not df_complaints_summary.empty:
+                df_complaints_period = df_complaints_summary[
+                    (df_complaints_summary['날짜'] >= start_str) & (df_complaints_summary['날짜'] <= end_str)
+                ].copy()
+                if selected_counselor_summary != "전체":
+                    df_complaints_period = df_complaints_period[df_complaints_period['담당자'] == selected_counselor_summary]
+            else:
+                df_complaints_period = df_complaints_summary
+
+            if df_complaints_period.empty:
+                st.info("해당 기간에 등록된 컴플레인이 없습니다.")
+            else:
+                total_complaints = len(df_complaints_period)
+                resolved = len(df_complaints_period[df_complaints_period['처리상태'] == '완료'])
+                in_progress = len(df_complaints_period[df_complaints_period['처리상태'] == '처리중'])
+                received = len(df_complaints_period[df_complaints_period['처리상태'] == '접수'])
+
+                cc1, cc2, cc3, cc4 = st.columns(4)
+                with cc1:
+                    st.metric("⚠️ 총 컴플레인", f"{total_complaints}건")
+                with cc2:
+                    st.metric("🔴 접수", f"{received}건")
+                with cc3:
+                    st.metric("🟡 처리중", f"{in_progress}건")
+                with cc4:
+                    st.metric("🟢 완료", f"{resolved}건")
+
+                type_counts = df_complaints_period['유형'].value_counts().reindex(COMPLAINT_TYPES, fill_value=0)
+                fig_complaint_type = px.bar(
+                    x=type_counts.index, y=type_counts.values,
+                    labels={'x': '유형', 'y': '건수'},
+                    title="유형별 컴플레인 건수",
+                    text_auto=True, color=type_counts.values,
+                    color_continuous_scale="Oranges"
+                )
+                fig_complaint_type.update_layout(showlegend=False, height=350)
+                st.plotly_chart(fig_complaint_type, use_container_width=True)
+
+                unresolved = df_complaints_period[df_complaints_period['처리상태'] != '완료'].sort_values('날짜')
+                if not unresolved.empty:
+                    st.write(f"**🔔 아직 처리되지 않은 컴플레인 ({len(unresolved)}건)**")
+                    unresolved_view = unresolved[['날짜', '환자성함', '유형', '담당자', '처리상태']].copy()
+                    st.dataframe(unresolved_view, use_container_width=True, hide_index=True)
+
+            st.divider()
+
             st.metric("📌 상담 건수", f"{len(df_report)}건")
 
             # ⬇️ CSV 다운로드 (엑셀에서 한글이 깨지지 않도록 utf-8-sig 사용)
@@ -1045,3 +1179,168 @@ with tab_statistics:
             st.info("해당 기간에 상담 기록이 없습니다")
     else:
         st.info("데이터가 없습니다")
+
+# ===== TAB 6: 컴플레인 관리 =====
+with tab_complaint:
+    st.header("⚠️ 컴플레인 관리")
+
+    complaint_ws = get_complaint_worksheet()
+
+    st.subheader("📝 컴플레인 등록")
+    with st.form("complaint_form", clear_on_submit=True):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            c_date = st.date_input("📅 발생일", datetime.now().date(), key="complaint_date")
+        with col2:
+            c_name = st.text_input("👤 환자 성함", key="complaint_name")
+        with col3:
+            c_chart_no = st.text_input("🔢 차트 번호", key="complaint_chart")
+
+        col4, col5, col6 = st.columns(3)
+        with col4:
+            c_staff = st.selectbox(
+                "👤 관련 담당자", [None] + COMPLAINT_STAFF_OPTIONS,
+                format_func=lambda x: "선택하세요" if x is None else x, key="complaint_staff"
+            )
+        with col5:
+            c_type = st.selectbox("🏷️ 유형", COMPLAINT_TYPES, key="complaint_type")
+        with col6:
+            c_recorder = st.selectbox(
+                "✍️ 기록자", [None] + COMPLAINT_STAFF_OPTIONS,
+                format_func=lambda x: "선택하세요" if x is None else x, key="complaint_recorder"
+            )
+
+        c_content = st.text_area("💬 상세 내용", height=120, key="complaint_content")
+
+        c_submitted = st.form_submit_button("💾 컴플레인 등록", use_container_width=True)
+
+    if c_submitted:
+        if not c_name:
+            st.error("❌ 환자 성함을 입력해주세요!")
+        elif not c_content or not c_content.strip():
+            st.error("❌ 상세 내용을 입력해주세요!")
+        elif c_recorder is None:
+            st.error("❌ 기록자를 선택해주세요!")
+        else:
+            new_complaint = {
+                "고유ID": str(uuid.uuid4()),
+                "날짜": c_date.strftime("%Y-%m-%d"),
+                "환자성함": c_name,
+                "차트번호": c_chart_no,
+                "담당자": c_staff or "",
+                "유형": c_type,
+                "상세내용": c_content,
+                "처리상태": "접수",
+                "처리내용": "",
+                "처리일": "",
+                "기록자": c_recorder,
+                "처리자": ""
+            }
+            try:
+                append_complaint(complaint_ws, new_complaint)
+                load_complaint_data.clear()
+                st.success("✅ 컴플레인이 등록되었습니다!")
+            except Exception:
+                st.error("❌ 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+
+    st.divider()
+
+    st.subheader("📋 컴플레인 목록")
+    df_complaints = load_complaint_data(complaint_ws)
+
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        status_filter = st.selectbox("처리상태 필터", ["전체"] + COMPLAINT_STATUSES, key="complaint_status_filter")
+    with col_f2:
+        search_term = st.text_input("환자 이름/차트번호 검색", key="complaint_search")
+
+    if not df_complaints.empty:
+        df_view = df_complaints.copy()
+        if status_filter != "전체":
+            df_view = df_view[df_view['처리상태'] == status_filter]
+        if search_term:
+            df_view = df_view[
+                (df_view['환자성함'].str.contains(search_term, case=False, na=False)) |
+                (df_view['차트번호'].astype(str).str.contains(search_term, case=False, na=False))
+            ]
+
+        df_view = df_view.sort_values('날짜', ascending=False)
+
+        if df_view.empty:
+            st.info("조건에 맞는 컴플레인이 없습니다.")
+        else:
+            status_icons = {"접수": "🔴", "처리중": "🟡", "완료": "🟢"}
+            for idx, row in df_view.iterrows():
+                unique_id = row.get('고유ID', '')
+                row_key = unique_id or f"idx{idx}"
+                icon = status_icons.get(row['처리상태'], "⚪")
+                with st.expander(
+                    f"{icon} {row['날짜']} - {row['환자성함']} ({row['유형']}) - {row['처리상태']}",
+                    expanded=(row['처리상태'] != '완료')
+                ):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
+                        st.write(f"**관련 담당자:** {row['담당자']}")
+                        st.write(f"**유형:** {row['유형']}")
+                        st.write(f"**기록자:** {row.get('기록자', '')}")
+                    with col2:
+                        st.write(f"**발생일:** {row['날짜']}")
+                        st.write(f"**현재 상태:** {row['처리상태']}")
+                        if row['처리일']:
+                            st.write(f"**처리일:** {row['처리일']}")
+                        if row.get('처리자'):
+                            st.write(f"**처리자:** {row['처리자']}")
+
+                    st.markdown(f"**상세 내용:**\n\n{row['상세내용']}")
+
+                    if not unique_id:
+                        st.warning("⚠️ 이 기록은 고유ID가 없어 수정할 수 없습니다.")
+                    else:
+                        st.write("**처리 상태/내용 업데이트:**")
+                        current_status = row['처리상태'] if row['처리상태'] in COMPLAINT_STATUSES else COMPLAINT_STATUSES[0]
+                        new_status = st.selectbox(
+                            "처리상태 변경",
+                            COMPLAINT_STATUSES,
+                            index=COMPLAINT_STATUSES.index(current_status),
+                            key=f"complaint_status_{row_key}"
+                        )
+                        current_handler = row.get('처리자', '') or None
+                        new_handler = st.selectbox(
+                            "처리자",
+                            [None] + COMPLAINT_STAFF_OPTIONS,
+                            index=(COMPLAINT_STAFF_OPTIONS.index(current_handler) + 1) if current_handler in COMPLAINT_STAFF_OPTIONS else 0,
+                            format_func=lambda x: "선택하세요" if x is None else x,
+                            key=f"complaint_handler_{row_key}"
+                        )
+                        new_note = st.text_area(
+                            "처리내용",
+                            value=row.get('처리내용', ''),
+                            key=f"complaint_note_{row_key}"
+                        )
+
+                        if st.button("✅ 저장", key=f"complaint_save_{row_key}"):
+                            updates = {}
+                            if new_status != row['처리상태']:
+                                updates["처리상태"] = new_status
+                                if new_status == "완료":
+                                    updates["처리일"] = datetime.now().date().strftime("%Y-%m-%d")
+                            if new_note != row.get('처리내용', ''):
+                                updates["처리내용"] = new_note
+                            if (new_handler or '') != (row.get('처리자', '') or ''):
+                                updates["처리자"] = new_handler or ''
+
+                            if updates:
+                                try:
+                                    if update_complaint_fields(complaint_ws, unique_id, updates):
+                                        load_complaint_data.clear()
+                                        st.success("✅ 저장되었습니다!")
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ 해당 기록을 찾지 못했습니다. 새로고침 후 다시 시도해주세요.")
+                                except Exception:
+                                    st.error("❌ 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+                            else:
+                                st.info("변경된 내용이 없습니다.")
+    else:
+        st.info("등록된 컴플레인이 없습니다.")
