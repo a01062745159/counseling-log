@@ -860,63 +860,24 @@ with tab_summary:
 
             st.divider()
 
-            # ===== ⚠️ 컴플레인 현황 (위에서 선택한 기간/상담자 기준) =====
+            # ===== ⚠️ 컴플레인 현황 (기간과 무관하게, 현재 조치가 안 된 건만) =====
             st.subheader("⚠️ 컴플레인 현황")
             complaint_ws_summary = get_complaint_worksheet()
             df_complaints_summary = load_complaint_data(complaint_ws_summary)
 
-            if not df_complaints_summary.empty:
-                df_complaints_period = df_complaints_summary[
-                    (df_complaints_summary['날짜'] >= start_str) & (df_complaints_summary['날짜'] <= end_str)
-                ].copy()
-                if selected_counselor_summary != "전체":
-                    df_complaints_period = df_complaints_period[df_complaints_period['담당자'] == selected_counselor_summary]
+            if df_complaints_summary.empty:
+                st.info("등록된 컴플레인이 없습니다.")
             else:
-                df_complaints_period = df_complaints_summary
-
-            if df_complaints_period.empty:
-                st.info("해당 기간에 등록된 컴플레인이 없습니다.")
-            else:
-                total_complaints = len(df_complaints_period)
-                resolved = len(df_complaints_period[df_complaints_period['처리상태'] == '완료'])
-                in_progress = len(df_complaints_period[df_complaints_period['처리상태'] == '처리중'])
-                received = len(df_complaints_period[df_complaints_period['처리상태'] == '접수'])
-
-                cc1, cc2, cc3, cc4 = st.columns(4)
-                with cc1:
-                    st.metric("⚠️ 총 컴플레인", f"{total_complaints}건")
-                with cc2:
-                    st.metric("🔴 접수", f"{received}건")
-                with cc3:
-                    st.metric("🟡 처리중", f"{in_progress}건")
-                with cc4:
-                    st.metric("🟢 완료", f"{resolved}건")
-
-                type_counts = df_complaints_period['유형'].value_counts().reindex(COMPLAINT_TYPES, fill_value=0)
-                fig_complaint_type = px.bar(
-                    x=type_counts.index, y=type_counts.values,
-                    labels={'x': '유형', 'y': '건수'},
-                    title="유형별 컴플레인 건수",
-                    text_auto=True, color=type_counts.values,
-                    color_continuous_scale="Oranges"
-                )
-                fig_complaint_type.update_layout(showlegend=False, height=350)
-                st.plotly_chart(fig_complaint_type, use_container_width=True)
-
-                unresolved = df_complaints_period[df_complaints_period['처리상태'] != '완료'].sort_values('날짜')
-                if not unresolved.empty:
-                    st.write(f"**🔔 아직 처리되지 않은 컴플레인 ({len(unresolved)}건)**")
-
-                    # 담당자별로 "확인이 필요한 사람"을 직관적으로 표시
-                    staff_series = unresolved['담당자'].replace('', '담당자 미지정')
+                unresolved_all = df_complaints_summary[df_complaints_summary['처리상태'] != '완료']
+                if unresolved_all.empty:
+                    st.success("🎉 조치가 필요한 컴플레인이 없습니다.")
+                else:
+                    staff_series = unresolved_all['담당자'].replace('', '담당자 미지정')
                     staff_series = staff_series.where(staff_series.notna(), '담당자 미지정')
                     staff_counts = staff_series.value_counts()
+                    st.write(f"**🔔 조치가 필요한 컴플레인: 총 {len(unresolved_all)}건**")
                     staff_lines = [f"👤 **{name}**: {cnt}건" for name, cnt in staff_counts.items()]
-                    st.warning("**⚠️ 확인 필요한 담당자**\n\n" + "  \n".join(staff_lines))
-
-                    unresolved_view = unresolved[['날짜', '환자성함', '유형', '담당자', '처리상태']].copy()
-                    unresolved_view['담당자'] = unresolved_view['담당자'].replace('', '담당자 미지정')
-                    st.dataframe(unresolved_view, use_container_width=True, hide_index=True)
+                    st.warning("\n\n".join(staff_lines))
 
             st.divider()
 
@@ -1224,6 +1185,9 @@ with tab_complaint:
 
             c_submitted = st.form_submit_button("💾 컴플레인 등록", use_container_width=True)
 
+        if st.session_state.pop("complaint_just_saved", False):
+            st.success("✅ 컴플레인이 등록되었습니다!")
+
         if c_submitted:
             if not c_name:
                 st.error("❌ 환자 성함을 입력해주세요!")
@@ -1249,7 +1213,8 @@ with tab_complaint:
                 try:
                     append_complaint(complaint_ws, new_complaint)
                     load_complaint_data.clear()
-                    st.success("✅ 컴플레인이 등록되었습니다!")
+                    st.session_state["complaint_just_saved"] = True
+                    st.rerun()
                 except Exception:
                     st.error("❌ 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
 
