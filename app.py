@@ -954,393 +954,398 @@ with tab_statistics:
                         st.rerun()
                     else:
                         st.error("❌ 비밀번호가 틀렸습니다. 다시 입력해주세요.")
-        st.stop()
-
-    df_stats = load_gsheet_data(ws)
-
-    if not df_stats.empty:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            date_type = st.radio("📅 기간 선택", ["월간", "특정 기간"], horizontal=True, key="stats_date_type")
-
-        if date_type == "월간":
-            with col2:
-                selected_year = st.selectbox("연도", range(2020, datetime.now().year + 1), index=datetime.now().year - 2020, key="stats_year")
-            with col3:
-                selected_month = st.selectbox("월", range(1, 13), index=datetime.now().month - 1, key="stats_month")
-            start_date_stats = datetime(selected_year, selected_month, 1).date()
-            last_day = monthrange(selected_year, selected_month)[1]
-            end_date_stats = datetime(selected_year, selected_month, last_day).date()
-        else:
-            with col2:
-                start_date_stats = st.date_input("시작일", datetime.now().date(), key="stats_start")
-            with col3:
-                end_date_stats = st.date_input("종료일", datetime.now().date(), key="stats_end")
-
-        df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
-        df_f = filter_by_date_range(df_stats, start_date_stats, end_date_stats)
-
-        if not df_f.empty:
-            st.divider()
-            st.subheader("📊 요약 통계")
-            total_count = len(df_f)
-            total_amount = int(df_f['금액_숫자'].sum())
-            confirmed_count = len(df_f[df_f['상담결과'] == '확정'])
-            unconfirmed_count = len(df_f[df_f['상담결과'] == '미확정'])
-            agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
-            confirmed_amount = int(df_f[df_f['상담결과'] == '확정']['금액_숫자'].sum())
-            unconfirmed_amount = int(df_f[df_f['상담결과'] == '미확정']['금액_숫자'].sum())
-
-            c1, c2, c3, c4, c5 = st.columns(5)
-            with c1:
-                st.metric("📌 총 상담건수", f"{total_count}건")
-            with c2:
-                st.metric("💰 총 매출액", f"{total_amount:,}원")
-            with c3:
-                st.metric("✅ 확정건수", f"{confirmed_count}건")
-            with c4:
-                st.metric("❌ 미확정건수", f"{unconfirmed_count}건")
-            with c5:
-                st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
-
-            ca1, ca2 = st.columns(2)
-            with ca1:
-                st.metric("✅ 확정 상담매출 총액", f"{confirmed_amount:,}원")
-            with ca2:
-                st.metric("❌ 미확정 상담매출 총액", f"{unconfirmed_amount:,}원")
-
-            st.divider()
-
-            df_confirmed = df_f[df_f['상담결과'] == '확정']
-            df_unconfirmed = df_f[df_f['상담결과'] == '미확정']
-
-            st.subheader("👥 상담자별 상담 건수 (확정 / 미확정)")
-            col_a, col_b = st.columns(2)
-
-            with col_a:
-                confirmed_cnt = df_confirmed['상담자'].value_counts().sort_values(ascending=False)
-                if not confirmed_cnt.empty:
-                    fig = px.bar(
-                        x=confirmed_cnt.index, y=confirmed_cnt.values,
-                        labels={'x': '상담자', 'y': '확정 건수'},
-                        title="상담자별 확정 상담 건수",
-                        text_auto=True, color=confirmed_cnt.values,
-                        color_continuous_scale="Blues"
-                    )
-                    fig.update_layout(showlegend=False, height=400)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("확정 상담 데이터가 없습니다")
-
-            with col_b:
-                unconfirmed_cnt = df_unconfirmed['상담자'].value_counts().sort_values(ascending=False)
-                if not unconfirmed_cnt.empty:
-                    fig = px.bar(
-                        x=unconfirmed_cnt.index, y=unconfirmed_cnt.values,
-                        labels={'x': '상담자', 'y': '미확정 건수'},
-                        title="상담자별 미확정 상담 건수",
-                        text_auto=True, color=unconfirmed_cnt.values,
-                        color_continuous_scale="Reds"
-                    )
-                    fig.update_layout(showlegend=False, height=400)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("미확정 상담 데이터가 없습니다")
-
-            st.divider()
-
-            st.subheader("🎯 상담자별 동의율")
-            counselor_total = df_f['상담자'].value_counts()
-            counselor_confirmed = df_confirmed['상담자'].value_counts().reindex(counselor_total.index, fill_value=0)
-            agree_rate = (counselor_confirmed / counselor_total * 100).sort_values(ascending=False)
-            if not agree_rate.empty:
-                agree_df = pd.DataFrame({'상담자': agree_rate.index, '동의율': agree_rate.values})
-                fig_agree = px.bar(
-                    agree_df, x='상담자', y='동의율',
-                    title="상담자별 동의율 (확정 / 전체)",
-                    text='동의율', color='동의율',
-                    color_continuous_scale="Tealgrn"
-                )
-                fig_agree.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-                fig_agree.update_layout(showlegend=False, height=400, yaxis_range=[0, 105])
-                st.plotly_chart(fig_agree, use_container_width=True)
-            else:
-                st.info("동의율 데이터가 없습니다")
-
-            st.divider()
-
-            st.subheader("💰 상담자별 매출액 (확정 / 미확정)")
-            col_c, col_d = st.columns(2)
-
-            with col_c:
-                confirmed_sales = df_confirmed.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
-                if not confirmed_sales.empty:
-                    fig = px.bar(
-                        x=confirmed_sales.index, y=confirmed_sales.values,
-                        labels={'x': '상담자', 'y': '확정 매출액 (원)'},
-                        title="상담자별 확정 상담 매출액",
-                        text_auto=True, color=confirmed_sales.values,
-                        color_continuous_scale="Blues"
-                    )
-                    fig.update_layout(showlegend=False, height=400)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("확정 매출 데이터가 없습니다")
-
-            with col_d:
-                unconfirmed_sales = df_unconfirmed.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
-                if not unconfirmed_sales.empty:
-                    fig = px.bar(
-                        x=unconfirmed_sales.index, y=unconfirmed_sales.values,
-                        labels={'x': '상담자', 'y': '미확정 매출액 (원)'},
-                        title="상담자별 미확정 상담 매출액",
-                        text_auto=True, color=unconfirmed_sales.values,
-                        color_continuous_scale="Reds"
-                    )
-                    fig.update_layout(showlegend=False, height=400)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("미확정 매출 데이터가 없습니다")
-
-            st.divider()
-
-            st.subheader("📊 상담자별 확정 / 미확정 매출 비중")
-            total_sales = confirmed_sales.add(unconfirmed_sales, fill_value=0).sort_values(ascending=False)
-            counselors_with_sales = [c for c in total_sales.index if total_sales[c] > 0]
-            if counselors_with_sales:
-                ratio_rows = []
-                for c in counselors_with_sales:
-                    conf = int(confirmed_sales.get(c, 0))
-                    unconf = int(unconfirmed_sales.get(c, 0))
-                    tot = conf + unconf
-                    ratio_rows.append({'상담자': c, '구분': '확정', '비중': conf / tot * 100, '매출액': conf})
-                    ratio_rows.append({'상담자': c, '구분': '미확정', '비중': unconf / tot * 100, '매출액': unconf})
-                ratio_df = pd.DataFrame(ratio_rows)
-                ratio_df['표시'] = ratio_df['비중'].map(lambda v: f"{v:.1f}%")
-                fig_ratio = px.bar(
-                    ratio_df, x='상담자', y='비중', color='구분',
-                    title="상담자별 확정/미확정 매출 비중 (100% 기준)",
-                    text='표시',
-                    color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
-                    category_orders={'상담자': counselors_with_sales}
-                )
-                fig_ratio.update_traces(textposition='inside')
-                fig_ratio.update_layout(height=400, yaxis_title='비중 (%)', barmode='stack')
-                st.plotly_chart(fig_ratio, use_container_width=True)
-            else:
-                st.info("매출 비중 데이터가 없습니다")
-
-            st.divider()
-
-            st.subheader("✅ 상담 결과 분포")
-            result_dist = df_f['상담결과'].value_counts()
-            fig_pie = px.pie(
-                values=result_dist.values, names=result_dist.index,
-                title="상담 결과 분포 (확정/미확정)",
-                color=result_dist.index,
-                color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
-                hole=0
-            )
-            fig_pie.update_layout(height=400)
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-            st.divider()
-
-            st.subheader("📈 날짜별 상담 건수 추이")
-            daily_count = df_f.groupby('날짜').size().reset_index(name='상담건수').sort_values('날짜')
-            fig_daily = px.line(
-                daily_count, x='날짜', y='상담건수',
-                title="날짜별 상담 건수 추이", markers=True, line_shape='linear'
-            )
-            fig_daily.update_traces(line=dict(color='#3366cc', width=3), marker=dict(size=8))
-            fig_daily.update_layout(height=400, hovermode='x unified')
-            st.plotly_chart(fig_daily, use_container_width=True)
-
-            st.divider()
-
-            st.subheader("📅 요일별 상담 건수 추이")
-            dow = pd.to_datetime(df_f['날짜'], errors='coerce').dt.dayofweek
-            dow_count = (
-                dow.dropna().astype(int)
-                .value_counts()
-                .reindex(range(7), fill_value=0)
-                .sort_index()
-            )
-            weekday_labels = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
-            fig_dow = px.line(
-                x=weekday_labels, y=dow_count.values,
-                labels={'x': '요일', 'y': '상담건수'},
-                title="요일별 상담 건수 추이", markers=True, line_shape='linear'
-            )
-            fig_dow.update_traces(line=dict(color='#2ca02c', width=3), marker=dict(size=8))
-            fig_dow.update_layout(height=400, hovermode='x unified')
-            st.plotly_chart(fig_dow, use_container_width=True)
-        else:
-            st.info("해당 기간에 상담 기록이 없습니다")
     else:
-        st.info("데이터가 없습니다")
+
+        df_stats = load_gsheet_data(ws)
+
+        if not df_stats.empty:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                date_type = st.radio("📅 기간 선택", ["월간", "특정 기간"], horizontal=True, key="stats_date_type")
+
+            if date_type == "월간":
+                with col2:
+                    selected_year = st.selectbox("연도", range(2020, datetime.now().year + 1), index=datetime.now().year - 2020, key="stats_year")
+                with col3:
+                    selected_month = st.selectbox("월", range(1, 13), index=datetime.now().month - 1, key="stats_month")
+                start_date_stats = datetime(selected_year, selected_month, 1).date()
+                last_day = monthrange(selected_year, selected_month)[1]
+                end_date_stats = datetime(selected_year, selected_month, last_day).date()
+            else:
+                with col2:
+                    start_date_stats = st.date_input("시작일", datetime.now().date(), key="stats_start")
+                with col3:
+                    end_date_stats = st.date_input("종료일", datetime.now().date(), key="stats_end")
+
+            df_stats['금액_숫자'] = pd.to_numeric(df_stats['금액'], errors='coerce').fillna(0)
+            df_f = filter_by_date_range(df_stats, start_date_stats, end_date_stats)
+
+            if not df_f.empty:
+                st.divider()
+                st.subheader("📊 요약 통계")
+                total_count = len(df_f)
+                total_amount = int(df_f['금액_숫자'].sum())
+                confirmed_count = len(df_f[df_f['상담결과'] == '확정'])
+                unconfirmed_count = len(df_f[df_f['상담결과'] == '미확정'])
+                agreement_rate = (confirmed_count / total_count * 100) if total_count > 0 else 0
+                confirmed_amount = int(df_f[df_f['상담결과'] == '확정']['금액_숫자'].sum())
+                unconfirmed_amount = int(df_f[df_f['상담결과'] == '미확정']['금액_숫자'].sum())
+
+                c1, c2, c3, c4, c5 = st.columns(5)
+                with c1:
+                    st.metric("📌 총 상담건수", f"{total_count}건")
+                with c2:
+                    st.metric("💰 총 매출액", f"{total_amount:,}원")
+                with c3:
+                    st.metric("✅ 확정건수", f"{confirmed_count}건")
+                with c4:
+                    st.metric("❌ 미확정건수", f"{unconfirmed_count}건")
+                with c5:
+                    st.metric("🎯 동의율", f"{agreement_rate:.1f}%")
+
+                ca1, ca2 = st.columns(2)
+                with ca1:
+                    st.metric("✅ 확정 상담매출 총액", f"{confirmed_amount:,}원")
+                with ca2:
+                    st.metric("❌ 미확정 상담매출 총액", f"{unconfirmed_amount:,}원")
+
+                st.divider()
+
+                df_confirmed = df_f[df_f['상담결과'] == '확정']
+                df_unconfirmed = df_f[df_f['상담결과'] == '미확정']
+
+                st.subheader("👥 상담자별 상담 건수 (확정 / 미확정)")
+                col_a, col_b = st.columns(2)
+
+                with col_a:
+                    confirmed_cnt = df_confirmed['상담자'].value_counts().sort_values(ascending=False)
+                    if not confirmed_cnt.empty:
+                        fig = px.bar(
+                            x=confirmed_cnt.index, y=confirmed_cnt.values,
+                            labels={'x': '상담자', 'y': '확정 건수'},
+                            title="상담자별 확정 상담 건수",
+                            text_auto=True, color=confirmed_cnt.values,
+                            color_continuous_scale="Blues"
+                        )
+                        fig.update_layout(showlegend=False, height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("확정 상담 데이터가 없습니다")
+
+                with col_b:
+                    unconfirmed_cnt = df_unconfirmed['상담자'].value_counts().sort_values(ascending=False)
+                    if not unconfirmed_cnt.empty:
+                        fig = px.bar(
+                            x=unconfirmed_cnt.index, y=unconfirmed_cnt.values,
+                            labels={'x': '상담자', 'y': '미확정 건수'},
+                            title="상담자별 미확정 상담 건수",
+                            text_auto=True, color=unconfirmed_cnt.values,
+                            color_continuous_scale="Reds"
+                        )
+                        fig.update_layout(showlegend=False, height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("미확정 상담 데이터가 없습니다")
+
+                st.divider()
+
+                st.subheader("🎯 상담자별 동의율")
+                counselor_total = df_f['상담자'].value_counts()
+                counselor_confirmed = df_confirmed['상담자'].value_counts().reindex(counselor_total.index, fill_value=0)
+                agree_rate = (counselor_confirmed / counselor_total * 100).sort_values(ascending=False)
+                if not agree_rate.empty:
+                    agree_df = pd.DataFrame({'상담자': agree_rate.index, '동의율': agree_rate.values})
+                    fig_agree = px.bar(
+                        agree_df, x='상담자', y='동의율',
+                        title="상담자별 동의율 (확정 / 전체)",
+                        text='동의율', color='동의율',
+                        color_continuous_scale="Tealgrn"
+                    )
+                    fig_agree.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+                    fig_agree.update_layout(showlegend=False, height=400, yaxis_range=[0, 105])
+                    st.plotly_chart(fig_agree, use_container_width=True)
+                else:
+                    st.info("동의율 데이터가 없습니다")
+
+                st.divider()
+
+                st.subheader("💰 상담자별 매출액 (확정 / 미확정)")
+                col_c, col_d = st.columns(2)
+
+                with col_c:
+                    confirmed_sales = df_confirmed.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
+                    if not confirmed_sales.empty:
+                        fig = px.bar(
+                            x=confirmed_sales.index, y=confirmed_sales.values,
+                            labels={'x': '상담자', 'y': '확정 매출액 (원)'},
+                            title="상담자별 확정 상담 매출액",
+                            text_auto=True, color=confirmed_sales.values,
+                            color_continuous_scale="Blues"
+                        )
+                        fig.update_layout(showlegend=False, height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("확정 매출 데이터가 없습니다")
+
+                with col_d:
+                    unconfirmed_sales = df_unconfirmed.groupby('상담자')['금액_숫자'].sum().sort_values(ascending=False)
+                    if not unconfirmed_sales.empty:
+                        fig = px.bar(
+                            x=unconfirmed_sales.index, y=unconfirmed_sales.values,
+                            labels={'x': '상담자', 'y': '미확정 매출액 (원)'},
+                            title="상담자별 미확정 상담 매출액",
+                            text_auto=True, color=unconfirmed_sales.values,
+                            color_continuous_scale="Reds"
+                        )
+                        fig.update_layout(showlegend=False, height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("미확정 매출 데이터가 없습니다")
+
+                st.divider()
+
+                st.subheader("📊 상담자별 확정 / 미확정 매출 비중")
+                total_sales = confirmed_sales.add(unconfirmed_sales, fill_value=0).sort_values(ascending=False)
+                counselors_with_sales = [c for c in total_sales.index if total_sales[c] > 0]
+                if counselors_with_sales:
+                    ratio_rows = []
+                    for c in counselors_with_sales:
+                        conf = int(confirmed_sales.get(c, 0))
+                        unconf = int(unconfirmed_sales.get(c, 0))
+                        tot = conf + unconf
+                        ratio_rows.append({'상담자': c, '구분': '확정', '비중': conf / tot * 100, '매출액': conf})
+                        ratio_rows.append({'상담자': c, '구분': '미확정', '비중': unconf / tot * 100, '매출액': unconf})
+                    ratio_df = pd.DataFrame(ratio_rows)
+                    ratio_df['표시'] = ratio_df['비중'].map(lambda v: f"{v:.1f}%")
+                    fig_ratio = px.bar(
+                        ratio_df, x='상담자', y='비중', color='구분',
+                        title="상담자별 확정/미확정 매출 비중 (100% 기준)",
+                        text='표시',
+                        color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
+                        category_orders={'상담자': counselors_with_sales}
+                    )
+                    fig_ratio.update_traces(textposition='inside')
+                    fig_ratio.update_layout(height=400, yaxis_title='비중 (%)', barmode='stack')
+                    st.plotly_chart(fig_ratio, use_container_width=True)
+                else:
+                    st.info("매출 비중 데이터가 없습니다")
+
+                st.divider()
+
+                st.subheader("✅ 상담 결과 분포")
+                result_dist = df_f['상담결과'].value_counts()
+                fig_pie = px.pie(
+                    values=result_dist.values, names=result_dist.index,
+                    title="상담 결과 분포 (확정/미확정)",
+                    color=result_dist.index,
+                    color_discrete_map={'확정': '#3366cc', '미확정': '#dc3912'},
+                    hole=0
+                )
+                fig_pie.update_layout(height=400)
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+                st.divider()
+
+                st.subheader("📈 날짜별 상담 건수 추이")
+                daily_count = df_f.groupby('날짜').size().reset_index(name='상담건수').sort_values('날짜')
+                fig_daily = px.line(
+                    daily_count, x='날짜', y='상담건수',
+                    title="날짜별 상담 건수 추이", markers=True, line_shape='linear'
+                )
+                fig_daily.update_traces(line=dict(color='#3366cc', width=3), marker=dict(size=8))
+                fig_daily.update_layout(height=400, hovermode='x unified')
+                st.plotly_chart(fig_daily, use_container_width=True)
+
+                st.divider()
+
+                st.subheader("📅 요일별 상담 건수 추이")
+                dow = pd.to_datetime(df_f['날짜'], errors='coerce').dt.dayofweek
+                dow_count = (
+                    dow.dropna().astype(int)
+                    .value_counts()
+                    .reindex(range(7), fill_value=0)
+                    .sort_index()
+                )
+                weekday_labels = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
+                fig_dow = px.line(
+                    x=weekday_labels, y=dow_count.values,
+                    labels={'x': '요일', 'y': '상담건수'},
+                    title="요일별 상담 건수 추이", markers=True, line_shape='linear'
+                )
+                fig_dow.update_traces(line=dict(color='#2ca02c', width=3), marker=dict(size=8))
+                fig_dow.update_layout(height=400, hovermode='x unified')
+                st.plotly_chart(fig_dow, use_container_width=True)
+            else:
+                st.info("해당 기간에 상담 기록이 없습니다")
+        else:
+            st.info("데이터가 없습니다")
 
 # ===== TAB 6: 컴플레인 관리 =====
 with tab_complaint:
-    st.header("⚠️ 컴플레인 관리")
+    try:
+        st.header("⚠️ 컴플레인 관리")
 
-    complaint_ws = get_complaint_worksheet()
+        complaint_ws = get_complaint_worksheet()
 
-    st.subheader("📝 컴플레인 등록")
-    with st.form("complaint_form", clear_on_submit=True):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            c_date = st.date_input("📅 발생일", datetime.now().date(), key="complaint_date")
-        with col2:
-            c_name = st.text_input("👤 환자 성함", key="complaint_name")
-        with col3:
-            c_chart_no = st.text_input("🔢 차트 번호", key="complaint_chart")
+        st.subheader("📝 컴플레인 등록")
+        with st.form("complaint_form", clear_on_submit=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                c_date = st.date_input("📅 발생일", datetime.now().date(), key="complaint_date")
+            with col2:
+                c_name = st.text_input("👤 환자 성함", key="complaint_name")
+            with col3:
+                c_chart_no = st.text_input("🔢 차트 번호", key="complaint_chart")
 
-        col4, col5, col6 = st.columns(3)
-        with col4:
-            c_staff = st.selectbox(
-                "👤 관련 담당자", [None] + COMPLAINT_STAFF_OPTIONS,
-                format_func=lambda x: "선택하세요" if x is None else x, key="complaint_staff"
-            )
-        with col5:
-            c_type = st.selectbox("🏷️ 유형", COMPLAINT_TYPES, key="complaint_type")
-        with col6:
-            c_recorder = st.selectbox(
-                "✍️ 기록자", [None] + COMPLAINT_STAFF_OPTIONS,
-                format_func=lambda x: "선택하세요" if x is None else x, key="complaint_recorder"
-            )
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                c_staff = st.selectbox(
+                    "👤 관련 담당자", [None] + COMPLAINT_STAFF_OPTIONS,
+                    format_func=lambda x: "선택하세요" if x is None else x, key="complaint_staff"
+                )
+            with col5:
+                c_type = st.selectbox("🏷️ 유형", COMPLAINT_TYPES, key="complaint_type")
+            with col6:
+                c_recorder = st.selectbox(
+                    "✍️ 기록자", [None] + COMPLAINT_STAFF_OPTIONS,
+                    format_func=lambda x: "선택하세요" if x is None else x, key="complaint_recorder"
+                )
 
-        c_content = st.text_area("💬 상세 내용", height=120, key="complaint_content")
+            c_content = st.text_area("💬 상세 내용", height=120, key="complaint_content")
 
-        c_submitted = st.form_submit_button("💾 컴플레인 등록", use_container_width=True)
+            c_submitted = st.form_submit_button("💾 컴플레인 등록", use_container_width=True)
 
-    if c_submitted:
-        if not c_name:
-            st.error("❌ 환자 성함을 입력해주세요!")
-        elif not c_content or not c_content.strip():
-            st.error("❌ 상세 내용을 입력해주세요!")
-        elif c_recorder is None:
-            st.error("❌ 기록자를 선택해주세요!")
+        if c_submitted:
+            if not c_name:
+                st.error("❌ 환자 성함을 입력해주세요!")
+            elif not c_content or not c_content.strip():
+                st.error("❌ 상세 내용을 입력해주세요!")
+            elif c_recorder is None:
+                st.error("❌ 기록자를 선택해주세요!")
+            else:
+                new_complaint = {
+                    "고유ID": str(uuid.uuid4()),
+                    "날짜": c_date.strftime("%Y-%m-%d"),
+                    "환자성함": c_name,
+                    "차트번호": c_chart_no,
+                    "담당자": c_staff or "",
+                    "유형": c_type,
+                    "상세내용": c_content,
+                    "처리상태": "접수",
+                    "처리내용": "",
+                    "처리일": "",
+                    "기록자": c_recorder,
+                    "처리자": ""
+                }
+                try:
+                    append_complaint(complaint_ws, new_complaint)
+                    load_complaint_data.clear()
+                    st.success("✅ 컴플레인이 등록되었습니다!")
+                except Exception:
+                    st.error("❌ 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+
+        st.divider()
+
+        st.subheader("📋 컴플레인 목록")
+        df_complaints = load_complaint_data(complaint_ws)
+
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            status_filter = st.selectbox("처리상태 필터", ["전체"] + COMPLAINT_STATUSES, key="complaint_status_filter")
+        with col_f2:
+            search_term = st.text_input("환자 이름/차트번호 검색", key="complaint_search")
+
+        if not df_complaints.empty:
+            df_view = df_complaints.copy()
+            if status_filter != "전체":
+                df_view = df_view[df_view['처리상태'] == status_filter]
+            if search_term:
+                df_view = df_view[
+                    (df_view['환자성함'].str.contains(search_term, case=False, na=False)) |
+                    (df_view['차트번호'].astype(str).str.contains(search_term, case=False, na=False))
+                ]
+
+            df_view = df_view.sort_values('날짜', ascending=False)
+
+            if df_view.empty:
+                st.info("조건에 맞는 컴플레인이 없습니다.")
+            else:
+                status_icons = {"접수": "🔴", "처리중": "🟡", "완료": "🟢"}
+                for idx, row in df_view.iterrows():
+                    unique_id = row.get('고유ID', '')
+                    row_key = unique_id or f"idx{idx}"
+                    icon = status_icons.get(row['처리상태'], "⚪")
+                    with st.expander(
+                        f"{icon} {row['날짜']} - {row['환자성함']} ({row['유형']}) - {row['처리상태']}",
+                        expanded=(row['처리상태'] != '완료')
+                    ):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
+                            st.write(f"**관련 담당자:** {row['담당자']}")
+                            st.write(f"**유형:** {row['유형']}")
+                            st.write(f"**기록자:** {row.get('기록자', '')}")
+                        with col2:
+                            st.write(f"**발생일:** {row['날짜']}")
+                            st.write(f"**현재 상태:** {row['처리상태']}")
+                            if row['처리일']:
+                                st.write(f"**처리일:** {row['처리일']}")
+                            if row.get('처리자'):
+                                st.write(f"**처리자:** {row['처리자']}")
+
+                        st.markdown(f"**상세 내용:**\n\n{row['상세내용']}")
+
+                        if not unique_id:
+                            st.warning("⚠️ 이 기록은 고유ID가 없어 수정할 수 없습니다.")
+                        else:
+                            st.write("**처리 상태/내용 업데이트:**")
+                            current_status = row['처리상태'] if row['처리상태'] in COMPLAINT_STATUSES else COMPLAINT_STATUSES[0]
+                            new_status = st.selectbox(
+                                "처리상태 변경",
+                                COMPLAINT_STATUSES,
+                                index=COMPLAINT_STATUSES.index(current_status),
+                                key=f"complaint_status_{row_key}"
+                            )
+                            current_handler = row.get('처리자', '') or None
+                            new_handler = st.selectbox(
+                                "처리자",
+                                [None] + COMPLAINT_STAFF_OPTIONS,
+                                index=(COMPLAINT_STAFF_OPTIONS.index(current_handler) + 1) if current_handler in COMPLAINT_STAFF_OPTIONS else 0,
+                                format_func=lambda x: "선택하세요" if x is None else x,
+                                key=f"complaint_handler_{row_key}"
+                            )
+                            new_note = st.text_area(
+                                "처리내용",
+                                value=row.get('처리내용', ''),
+                                key=f"complaint_note_{row_key}"
+                            )
+
+                            if st.button("✅ 저장", key=f"complaint_save_{row_key}"):
+                                updates = {}
+                                if new_status != row['처리상태']:
+                                    updates["처리상태"] = new_status
+                                    if new_status == "완료":
+                                        updates["처리일"] = datetime.now().date().strftime("%Y-%m-%d")
+                                if new_note != row.get('처리내용', ''):
+                                    updates["처리내용"] = new_note
+                                if (new_handler or '') != (row.get('처리자', '') or ''):
+                                    updates["처리자"] = new_handler or ''
+
+                                if updates:
+                                    try:
+                                        if update_complaint_fields(complaint_ws, unique_id, updates):
+                                            load_complaint_data.clear()
+                                            st.success("✅ 저장되었습니다!")
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ 해당 기록을 찾지 못했습니다. 새로고침 후 다시 시도해주세요.")
+                                    except Exception:
+                                        st.error("❌ 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+                                else:
+                                    st.info("변경된 내용이 없습니다.")
         else:
-            new_complaint = {
-                "고유ID": str(uuid.uuid4()),
-                "날짜": c_date.strftime("%Y-%m-%d"),
-                "환자성함": c_name,
-                "차트번호": c_chart_no,
-                "담당자": c_staff or "",
-                "유형": c_type,
-                "상세내용": c_content,
-                "처리상태": "접수",
-                "처리내용": "",
-                "처리일": "",
-                "기록자": c_recorder,
-                "처리자": ""
-            }
-            try:
-                append_complaint(complaint_ws, new_complaint)
-                load_complaint_data.clear()
-                st.success("✅ 컴플레인이 등록되었습니다!")
-            except Exception:
-                st.error("❌ 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-
-    st.divider()
-
-    st.subheader("📋 컴플레인 목록")
-    df_complaints = load_complaint_data(complaint_ws)
-
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        status_filter = st.selectbox("처리상태 필터", ["전체"] + COMPLAINT_STATUSES, key="complaint_status_filter")
-    with col_f2:
-        search_term = st.text_input("환자 이름/차트번호 검색", key="complaint_search")
-
-    if not df_complaints.empty:
-        df_view = df_complaints.copy()
-        if status_filter != "전체":
-            df_view = df_view[df_view['처리상태'] == status_filter]
-        if search_term:
-            df_view = df_view[
-                (df_view['환자성함'].str.contains(search_term, case=False, na=False)) |
-                (df_view['차트번호'].astype(str).str.contains(search_term, case=False, na=False))
-            ]
-
-        df_view = df_view.sort_values('날짜', ascending=False)
-
-        if df_view.empty:
-            st.info("조건에 맞는 컴플레인이 없습니다.")
-        else:
-            status_icons = {"접수": "🔴", "처리중": "🟡", "완료": "🟢"}
-            for idx, row in df_view.iterrows():
-                unique_id = row.get('고유ID', '')
-                row_key = unique_id or f"idx{idx}"
-                icon = status_icons.get(row['처리상태'], "⚪")
-                with st.expander(
-                    f"{icon} {row['날짜']} - {row['환자성함']} ({row['유형']}) - {row['처리상태']}",
-                    expanded=(row['처리상태'] != '완료')
-                ):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**차트번호:** {format_chart_no(row['차트번호'])}")
-                        st.write(f"**관련 담당자:** {row['담당자']}")
-                        st.write(f"**유형:** {row['유형']}")
-                        st.write(f"**기록자:** {row.get('기록자', '')}")
-                    with col2:
-                        st.write(f"**발생일:** {row['날짜']}")
-                        st.write(f"**현재 상태:** {row['처리상태']}")
-                        if row['처리일']:
-                            st.write(f"**처리일:** {row['처리일']}")
-                        if row.get('처리자'):
-                            st.write(f"**처리자:** {row['처리자']}")
-
-                    st.markdown(f"**상세 내용:**\n\n{row['상세내용']}")
-
-                    if not unique_id:
-                        st.warning("⚠️ 이 기록은 고유ID가 없어 수정할 수 없습니다.")
-                    else:
-                        st.write("**처리 상태/내용 업데이트:**")
-                        current_status = row['처리상태'] if row['처리상태'] in COMPLAINT_STATUSES else COMPLAINT_STATUSES[0]
-                        new_status = st.selectbox(
-                            "처리상태 변경",
-                            COMPLAINT_STATUSES,
-                            index=COMPLAINT_STATUSES.index(current_status),
-                            key=f"complaint_status_{row_key}"
-                        )
-                        current_handler = row.get('처리자', '') or None
-                        new_handler = st.selectbox(
-                            "처리자",
-                            [None] + COMPLAINT_STAFF_OPTIONS,
-                            index=(COMPLAINT_STAFF_OPTIONS.index(current_handler) + 1) if current_handler in COMPLAINT_STAFF_OPTIONS else 0,
-                            format_func=lambda x: "선택하세요" if x is None else x,
-                            key=f"complaint_handler_{row_key}"
-                        )
-                        new_note = st.text_area(
-                            "처리내용",
-                            value=row.get('처리내용', ''),
-                            key=f"complaint_note_{row_key}"
-                        )
-
-                        if st.button("✅ 저장", key=f"complaint_save_{row_key}"):
-                            updates = {}
-                            if new_status != row['처리상태']:
-                                updates["처리상태"] = new_status
-                                if new_status == "완료":
-                                    updates["처리일"] = datetime.now().date().strftime("%Y-%m-%d")
-                            if new_note != row.get('처리내용', ''):
-                                updates["처리내용"] = new_note
-                            if (new_handler or '') != (row.get('처리자', '') or ''):
-                                updates["처리자"] = new_handler or ''
-
-                            if updates:
-                                try:
-                                    if update_complaint_fields(complaint_ws, unique_id, updates):
-                                        load_complaint_data.clear()
-                                        st.success("✅ 저장되었습니다!")
-                                        st.rerun()
-                                    else:
-                                        st.error("❌ 해당 기록을 찾지 못했습니다. 새로고침 후 다시 시도해주세요.")
-                                except Exception:
-                                    st.error("❌ 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
-                            else:
-                                st.info("변경된 내용이 없습니다.")
-    else:
-        st.info("등록된 컴플레인이 없습니다.")
+            st.info("등록된 컴플레인이 없습니다.")
+    except Exception as e:
+        st.error("❌ 컴플레인 탭에서 오류가 발생했습니다.")
+        with st.expander("오류 자세히 보기 (문제 파악용)"):
+            st.code(str(e))
